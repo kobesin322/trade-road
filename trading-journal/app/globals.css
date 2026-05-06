@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+:root {
+  --background: #05070d;
+  --foreground: #f8fafc;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(34, 211, 238, 0.4) rgba(255, 255, 255, 0.06);
+}
+
+::selection {
+  background: rgba(34, 211, 238, 0.35);
+  color: #ffffff;
+}
+
+.confetti-piece {
+  animation: confetti-fall 1.3s cubic-bezier(0.22, 0.72, 0.22, 1) forwards;
+  animation-delay: var(--delay);
+  background: hsl(var(--hue), 90%, 62%);
+  border-radius: 999px;
+  box-shadow: 0 0 14px hsla(var(--hue), 90%, 62%, 0.65);
+  height: 10px;
+  left: var(--x);
+  position: absolute;
+  top: -16px;
+  transform: rotate(0deg);
+  width: 10px;
+}
+
+@keyframes confetti-fall {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, -18px, 0) rotate(0deg) scale(0.9);
+  }
+  12% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(-34px, 190px, 0) rotate(420deg) scale(0.65);
+  }
+}
