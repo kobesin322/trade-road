@@ -277,12 +277,6 @@ export const sampleTrades: Trade[] = [
   },
 ];
 
-export const strategyWins = [
-  { name: "Strategy #1", profit: 176, fill: "#38bdf8" },
-  { name: "Strategy #2", profit: 145, fill: "#facc15" },
-  { name: "Strategy #3", profit: 140, fill: "#f8fafc" },
-];
-
 export const march2026Days = Array.from({ length: 31 }, (_, index) => {
   const day = index + 1;
   return {
