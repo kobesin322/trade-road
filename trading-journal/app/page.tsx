@@ -129,6 +129,14 @@ function ConfettiBurst({ active }: { active: boolean }) {
   );
 }
 
+function ChartPlaceholder({ label = "Loading chart" }: { label?: string }) {
+  return (
+    <div className="flex h-full min-h-28 items-center justify-center rounded-3xl border border-white/10 bg-white/[0.03] text-xs font-bold uppercase tracking-[0.22em] text-zinc-500">
+      {label}
+    </div>
+  );
+}
+
 export default function Home() {
   const [trades, setTrades] = useState<Trade[]>(sampleTrades);
   const [activeView, setActiveView] = useState<MainView>("Dashboard");
@@ -139,6 +147,7 @@ export default function Home() {
   const [selectedTrade, setSelectedTrade] = useState<Trade>(sampleTrades[0]);
   const [confetti, setConfetti] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
+  const [chartsReady, setChartsReady] = useState(false);
 
   useEffect(() => {
     try {
@@ -173,6 +182,10 @@ export default function Home() {
       // Local storage can be disabled in private browsing; the app still runs in memory.
     }
   }, [isHydrated, trades]);
+
+  useEffect(() => {
+    setChartsReady(true);
+  }, []);
 
   const stats = useMemo(() => getTradeStats(trades), [trades]);
   const dailyProfit = useMemo(() => buildDailyProfit(trades), [trades]);
@@ -292,6 +305,7 @@ export default function Home() {
         {activeView === "Dashboard" && (
           <DashboardView
             bestWin={bestWin}
+            chartsReady={chartsReady}
             dailyProfit={dailyProfit}
             maxDailyAbs={maxDailyAbs}
             setActiveView={setActiveView}
@@ -315,11 +329,17 @@ export default function Home() {
             strategySummary={strategySummary}
             trades={trades}
             onSelectTrade={selectTrade}
+            chartsReady={chartsReady}
           />
         )}
 
         {activeView === "Charts" && (
-          <ChartsView selectedTrade={selectedTrade} trades={trades} onSelectTrade={selectTrade} />
+          <ChartsView
+            chartsReady={chartsReady}
+            selectedTrade={selectedTrade}
+            trades={trades}
+            onSelectTrade={selectTrade}
+          />
         )}
 
         {activeView === "Calendar" && (
@@ -340,12 +360,14 @@ export default function Home() {
 
 function DashboardView({
   bestWin,
+  chartsReady,
   dailyProfit,
   maxDailyAbs,
   setActiveView,
   stats,
 }: {
   bestWin: Trade;
+  chartsReady: boolean;
   dailyProfit: ReturnType<typeof buildDailyProfit>;
   maxDailyAbs: number;
   setActiveView: (view: MainView) => void;
@@ -427,19 +449,23 @@ function DashboardView({
           </CardHeader>
           <CardContent>
             <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={strategyWins} margin={{ left: -24, right: 12, top: 20 }}>
-                  <CartesianGrid stroke="rgba(255,255,255,0.07)" vertical={false} />
-                  <XAxis dataKey="name" tick={{ fill: "#a1a1aa", fontSize: 12 }} tickLine={false} />
-                  <YAxis tick={{ fill: "#71717a", fontSize: 12 }} tickLine={false} axisLine={false} />
-                  <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
-                  <Bar dataKey="profit" radius={[16, 16, 6, 6]} barSize={58}>
-                    {strategyWins.map((entry) => (
-                      <Cell key={entry.name} fill={entry.fill} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              {chartsReady ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={strategyWins} margin={{ left: -24, right: 12, top: 20 }}>
+                    <CartesianGrid stroke="rgba(255,255,255,0.07)" vertical={false} />
+                    <XAxis dataKey="name" tick={{ fill: "#a1a1aa", fontSize: 12 }} tickLine={false} />
+                    <YAxis tick={{ fill: "#71717a", fontSize: 12 }} tickLine={false} axisLine={false} />
+                    <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
+                    <Bar dataKey="profit" radius={[16, 16, 6, 6]} barSize={58}>
+                      {strategyWins.map((entry) => (
+                        <Cell key={entry.name} fill={entry.fill} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <ChartPlaceholder label="Loading strategy chart" />
+              )}
             </div>
             <div className="mt-4 grid gap-3">
               {strategyWins.map((strategy) => (
@@ -469,46 +495,50 @@ function DashboardView({
           </CardHeader>
           <CardContent>
             <div className="h-[760px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={dailyProfit}
-                  layout="vertical"
-                  margin={{ bottom: 8, left: 0, right: 20, top: 8 }}
-                >
-                  <CartesianGrid stroke="rgba(255,255,255,0.06)" horizontal={false} />
-                  <XAxis
-                    type="number"
-                    domain={[-maxDailyAbs, maxDailyAbs]}
-                    tick={{ fill: "#71717a", fontSize: 11 }}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <YAxis
-                    dataKey="label"
-                    type="category"
-                    width={58}
-                    tick={{ fill: "#a1a1aa", fontSize: 12 }}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
-                  <ReferenceLine x={0} stroke="rgba(255,255,255,0.28)" />
-                  <Bar dataKey="profit" radius={10} barSize={14}>
-                    {dailyProfit.map((day) => (
-                      <Cell
-                        key={day.date}
-                        fill={
-                          day.profit > 0
-                            ? "#22c55e"
-                            : day.profit < 0
-                              ? "#fb7185"
-                              : "rgba(255,255,255,0.12)"
-                        }
-                      />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              {chartsReady ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={dailyProfit}
+                    layout="vertical"
+                    margin={{ bottom: 8, left: 0, right: 20, top: 8 }}
+                  >
+                    <CartesianGrid stroke="rgba(255,255,255,0.06)" horizontal={false} />
+                    <XAxis
+                      type="number"
+                      domain={[-maxDailyAbs, maxDailyAbs]}
+                      tick={{ fill: "#71717a", fontSize: 11 }}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <YAxis
+                      dataKey="label"
+                      type="category"
+                      width={58}
+                      tick={{ fill: "#a1a1aa", fontSize: 12 }}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
+                    <ReferenceLine x={0} stroke="rgba(255,255,255,0.28)" />
+                    <Bar dataKey="profit" radius={10} barSize={14}>
+                      {dailyProfit.map((day) => (
+                        <Cell
+                          key={day.date}
+                          fill={
+                            day.profit > 0
+                              ? "#22c55e"
+                              : day.profit < 0
+                                ? "#fb7185"
+                                : "rgba(255,255,255,0.12)"
+                          }
+                        />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <ChartPlaceholder label="Loading daily chart" />
+              )}
             </div>
           </CardContent>
         </Card>
@@ -537,6 +567,7 @@ function DashboardView({
 }
 
 function JournalView({
+  chartsReady,
   filteredTrades,
   journalTab,
   outcomeFilter,
@@ -552,6 +583,7 @@ function JournalView({
   trades,
   onSelectTrade,
 }: {
+  chartsReady: boolean;
   filteredTrades: Trade[];
   journalTab: JournalTab;
   outcomeFilter: OutcomeFilter;
@@ -718,7 +750,7 @@ function JournalView({
         </CardContent>
       </Card>
 
-      <TradeDetail trade={selectedTrade} />
+      <TradeDetail chartsReady={chartsReady} trade={selectedTrade} />
     </section>
   );
 }
@@ -757,7 +789,7 @@ function OutcomePanel({
   );
 }
 
-function TradeDetail({ trade }: { trade: Trade }) {
+function TradeDetail({ chartsReady, trade }: { chartsReady: boolean; trade: Trade }) {
   return (
     <Card className="sticky top-4 h-fit overflow-hidden border-cyan-300/20">
       <CardHeader>
@@ -774,32 +806,36 @@ function TradeDetail({ trade }: { trade: Trade }) {
       <CardContent>
         <div className="rounded-3xl border border-white/10 bg-black/25 p-4">
           <div className="h-56">
-            <ResponsiveContainer width="100%" height="100%">
-              <RechartsLineChart data={trade.chartData}>
-                <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
-                <XAxis dataKey="time" hide />
-                <YAxis hide domain={["dataMin", "dataMax"]} />
-                <Tooltip
-                  content={({ active, payload }) => {
-                    if (!active || !payload?.length) {
-                      return null;
-                    }
-                    return (
-                      <div className="rounded-xl border border-white/10 bg-zinc-950 px-3 py-2 text-xs text-white">
-                        Price {Number(payload[0].value).toFixed(4)}
-                      </div>
-                    );
-                  }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="price"
-                  stroke={trade.outcome === "WIN" ? "#22c55e" : "#fb7185"}
-                  strokeWidth={3}
-                  dot={false}
-                />
-              </RechartsLineChart>
-            </ResponsiveContainer>
+            {chartsReady ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <RechartsLineChart data={trade.chartData}>
+                  <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
+                  <XAxis dataKey="time" hide />
+                  <YAxis hide domain={["dataMin", "dataMax"]} />
+                  <Tooltip
+                    content={({ active, payload }) => {
+                      if (!active || !payload?.length) {
+                        return null;
+                      }
+                      return (
+                        <div className="rounded-xl border border-white/10 bg-zinc-950 px-3 py-2 text-xs text-white">
+                          Price {Number(payload[0].value).toFixed(4)}
+                        </div>
+                      );
+                    }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="price"
+                    stroke={trade.outcome === "WIN" ? "#22c55e" : "#fb7185"}
+                    strokeWidth={3}
+                    dot={false}
+                  />
+                </RechartsLineChart>
+              </ResponsiveContainer>
+            ) : (
+              <ChartPlaceholder label="Loading replay" />
+            )}
           </div>
         </div>
         <div className="mt-4 grid grid-cols-2 gap-3">
@@ -831,10 +867,12 @@ function TradeDetail({ trade }: { trade: Trade }) {
 }
 
 function ChartsView({
+  chartsReady,
   selectedTrade,
   trades,
   onSelectTrade,
 }: {
+  chartsReady: boolean;
   selectedTrade: Trade;
   trades: Trade[];
   onSelectTrade: (trade: Trade) => void;
@@ -875,19 +913,23 @@ function ChartsView({
               <Badge tone={trade.outcome === "WIN" ? "win" : "loss"}>{trade.outcome}</Badge>
             </div>
             <div className="mt-4 h-32 rounded-3xl border border-white/10 bg-black/30 p-3">
-              <ResponsiveContainer width="100%" height="100%">
-                <RechartsLineChart data={trade.chartData}>
-                  <XAxis dataKey="time" hide />
-                  <YAxis hide domain={["dataMin", "dataMax"]} />
-                  <Line
-                    type="monotone"
-                    dataKey="price"
-                    stroke={trade.outcome === "WIN" ? "#22c55e" : "#fb7185"}
-                    strokeWidth={3}
-                    dot={false}
-                  />
-                </RechartsLineChart>
-              </ResponsiveContainer>
+              {chartsReady ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <RechartsLineChart data={trade.chartData}>
+                    <XAxis dataKey="time" hide />
+                    <YAxis hide domain={["dataMin", "dataMax"]} />
+                    <Line
+                      type="monotone"
+                      dataKey="price"
+                      stroke={trade.outcome === "WIN" ? "#22c55e" : "#fb7185"}
+                      strokeWidth={3}
+                      dot={false}
+                    />
+                  </RechartsLineChart>
+                </ResponsiveContainer>
+              ) : (
+                <ChartPlaceholder label="Replay loading" />
+              )}
             </div>
             <div className="mt-4 flex items-center justify-between">
               <div>
