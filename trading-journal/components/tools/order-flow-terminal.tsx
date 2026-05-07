@@ -20,8 +20,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 const SYMBOLS = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT"] as const;
-const BINANCE_REST_BASE = "https://api.binance.com";
-const BINANCE_WS_BASE = "wss://stream.binance.com:9443/ws";
+const BINANCE_VENUES = [
+  {
+    name: "Binance Global",
+    restBase: "https://api.binance.com",
+    wsBase: "wss://stream.binance.com:9443/ws",
+  },
+  {
+    name: "Binance US",
+    restBase: "https://api.binance.us",
+    wsBase: "wss://stream.binance.us:9443/ws",
+  },
+] as const;
 const BOOK_LIMIT = 1000;
 const DISPLAY_LEVELS = 14;
 const IMBALANCE_LEVELS = 20;
@@ -251,9 +261,11 @@ function useBinanceOrderBook(symbol: SymbolOption) {
   const reconnectTimerRef = useRef<number | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const shouldReconnectRef = useRef(false);
+  const venueIndexRef = useRef(0);
 
   const [status, setStatus] = useState<ConnectionStatus>("idle");
   const [error, setError] = useState<string | null>(null);
+  const [venueName, setVenueName] = useState<string | null>(null);
   const [renderedBook, setRenderedBook] = useState<RenderedBook>(() =>
     buildRenderedBook(new Map(), new Map()),
   );
@@ -280,6 +292,7 @@ function useBinanceOrderBook(symbol: SymbolOption) {
     syncedRef.current = false;
     setLastEventTime(null);
     setLastUpdateId(null);
+    setVenueName(null);
     setRenderedBook(buildRenderedBook(new Map(), new Map()));
   }, []);
 
@@ -317,15 +330,27 @@ function useBinanceOrderBook(symbol: SymbolOption) {
     [publishBook],
   );
 
-  const connect = useCallback(async () => {
+  const connect = useCallback(async (venueIndex = 0) => {
+    const previousSocket = wsRef.current;
+    if (previousSocket) {
+      previousSocket.onclose = null;
+      previousSocket.onerror = null;
+      previousSocket.onmessage = null;
+      previousSocket.close(1000, "Starting a fresh order book sync");
+      wsRef.current = null;
+    }
+
+    const venue = BINANCE_VENUES[venueIndex];
+    venueIndexRef.current = venueIndex;
     shouldReconnectRef.current = true;
     clearReconnectTimer();
     resetBook();
     setError(null);
+    setVenueName(venue.name);
     setStatus("connecting");
 
     const streamSymbol = symbol.toLowerCase();
-    const socket = new WebSocket(`${BINANCE_WS_BASE}/${streamSymbol}@depth@1000ms`);
+    const socket = new WebSocket(`${venue.wsBase}/${streamSymbol}@depth@1000ms`);
     wsRef.current = socket;
 
     socket.onopen = () => {
@@ -368,13 +393,13 @@ function useBinanceOrderBook(symbol: SymbolOption) {
       const nextAttempt = Math.min(reconnectAttemptsRef.current + 1, 5);
       reconnectAttemptsRef.current = nextAttempt;
       reconnectTimerRef.current = window.setTimeout(() => {
-        void connect();
+        void connect(venueIndexRef.current);
       }, nextAttempt * 1000);
     };
 
     try {
       const response = await fetch(
-        `${BINANCE_REST_BASE}/api/v3/depth?symbol=${symbol}&limit=${BOOK_LIMIT}`,
+        `${venue.restBase}/api/v3/depth?symbol=${symbol}&limit=${BOOK_LIMIT}`,
         { cache: "no-store" },
       );
 
@@ -412,9 +437,18 @@ function useBinanceOrderBook(symbol: SymbolOption) {
         snapshotError instanceof Error
           ? snapshotError.message
           : "Unable to initialize Binance depth snapshot.";
+      socket.onclose = null;
+      socket.close(1000, "Snapshot initialization failed");
+      const nextVenueIndex = venueIndex + 1;
+      if (nextVenueIndex < BINANCE_VENUES.length) {
+        setError(`${venue.name} unavailable (${message}). Trying ${BINANCE_VENUES[nextVenueIndex].name}.`);
+        void connect(nextVenueIndex);
+        return;
+      }
+
+      shouldReconnectRef.current = false;
       setStatus("error");
       setError(message);
-      socket.close();
     }
   }, [applyUpdate, clearReconnectTimer, publishBook, resetBook, symbol]);
 
@@ -425,6 +459,7 @@ function useBinanceOrderBook(symbol: SymbolOption) {
     lastEventTime,
     lastUpdateId,
     metrics: renderedBook.metrics,
+    venueName,
     bids: renderedBook.bids,
     asks: renderedBook.asks,
     status,
@@ -433,7 +468,7 @@ function useBinanceOrderBook(symbol: SymbolOption) {
 
 export function OrderFlowTerminal() {
   const [symbol, setSymbol] = useState<SymbolOption>("BTCUSDT");
-  const { asks, bids, connect, disconnect, error, lastEventTime, lastUpdateId, metrics, status } =
+  const { asks, bids, connect, disconnect, error, lastEventTime, lastUpdateId, metrics, status, venueName } =
     useBinanceOrderBook(symbol);
   const maxCumulative = useMemo(
     () => Math.max(1, ...bids.map((level) => level.cumulative), ...asks.map((level) => level.cumulative)),
@@ -540,6 +575,7 @@ export function OrderFlowTerminal() {
               lastUpdateId={lastUpdateId}
               metrics={metrics}
               status={status}
+              venueName={venueName}
             />
           </div>
         </CardContent>
@@ -713,11 +749,13 @@ function MetricsPanel({
   lastUpdateId,
   metrics,
   status,
+  venueName,
 }: {
   lastEventTime: number | null;
   lastUpdateId: number | null;
   metrics: BookMetrics;
   status: ConnectionStatus;
+  venueName: string | null;
 }) {
   const imbalanceWidth = `${Math.min(100, Math.max(0, ((metrics.imbalance + 100) / 200) * 100))}%`;
 
@@ -765,6 +803,10 @@ function MetricsPanel({
           <div className="flex justify-between gap-3 rounded-2xl bg-white/[0.04] px-3 py-2">
             <span className="text-zinc-500">Status</span>
             <span className={cn("font-black", statusTone(status))}>{getStatusCopy(status)}</span>
+          </div>
+          <div className="flex justify-between gap-3 rounded-2xl bg-white/[0.04] px-3 py-2">
+            <span className="text-zinc-500">Venue</span>
+            <span className="font-semibold text-zinc-200">{venueName ?? "--"}</span>
           </div>
           <div className="flex justify-between gap-3 rounded-2xl bg-white/[0.04] px-3 py-2">
             <span className="text-zinc-500">Update ID</span>
