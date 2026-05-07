@@ -325,6 +325,8 @@ function useBinanceOrderBook(symbol: SymbolOption) {
       lastUpdateIdRef.current = update.u;
       setLastEventTime(update.E);
       publishBook();
+      setStatus("live");
+      reconnectAttemptsRef.current = 0;
       return true;
     },
     [publishBook],
