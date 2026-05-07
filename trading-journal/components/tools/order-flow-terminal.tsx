@@ -372,7 +372,7 @@ function useBinanceOrderBook(symbol: SymbolOption) {
         const ok = applyUpdate(parsed);
         if (!ok) {
           setError("Depth stream sequence gap detected. Re-syncing order book.");
-          void connect();
+          void connect(venueIndexRef.current);
         }
       } catch {
         setError("Unable to parse Binance depth update.");
@@ -438,6 +438,8 @@ function useBinanceOrderBook(symbol: SymbolOption) {
           ? snapshotError.message
           : "Unable to initialize Binance depth snapshot.";
       socket.onclose = null;
+      socket.onerror = null;
+      socket.onmessage = null;
       socket.close(1000, "Snapshot initialization failed");
       const nextVenueIndex = venueIndex + 1;
       if (nextVenueIndex < BINANCE_VENUES.length) {
