@@ -24,6 +24,7 @@ import {
   Trophy,
   WalletCards,
 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type CSSProperties, useEffect, useMemo, useState, useTransition } from "react";
 import {
@@ -52,6 +53,18 @@ import { cn } from "@/lib/utils";
 import { buildDailyProfit, getTradeStats, type Trade, type TradeOutcome } from "@/lib/trades";
 
 const mainViews = ["Dashboard", "Journal", "Charts", "Calendar"] as const;
+const toolLinks = [
+  {
+    href: "/tools/correlation",
+    title: "Correlation Matrix",
+    description: "Pearson pair selection",
+  },
+  {
+    href: "/tools/orderflow",
+    title: "Order Flow",
+    description: "Market microstructure",
+  },
+] as const;
 const journalTabs = ["List overview", "Wins Vs Losses", "Strategy overview"] as const;
 const strategies = ["Strategy #1", "Strategy #2", "Strategy #3"] as const;
 
@@ -373,6 +386,35 @@ export function TradingDashboard({ initialTrades, userId, userEmail }: TradingDa
               {view}
             </button>
           ))}
+        </nav>
+
+        <nav
+          aria-label="Trading tools"
+          className="grid gap-3 rounded-[1.5rem] border border-cyan-300/15 bg-cyan-300/[0.05] p-3 backdrop-blur lg:grid-cols-[auto_1fr]"
+        >
+          <div className="flex items-center gap-2 px-2 text-xs font-black uppercase tracking-[0.28em] text-cyan-200">
+            <Gauge className="h-4 w-4" />
+            Tools
+          </div>
+          <div className="grid gap-2 md:grid-cols-2">
+            {toolLinks.map((tool) => (
+              <Link
+                key={tool.href}
+                href={tool.href}
+                className="group rounded-2xl border border-white/10 bg-black/25 px-4 py-3 transition hover:-translate-y-0.5 hover:border-cyan-300/50 hover:bg-cyan-300/10"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-black text-white">{tool.title}</div>
+                    <div className="mt-1 text-xs font-semibold text-zinc-500">
+                      {tool.description}
+                    </div>
+                  </div>
+                  <ArrowUpRight className="h-4 w-4 text-cyan-200 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                </div>
+              </Link>
+            ))}
+          </div>
         </nav>
 
         {activeView === "Dashboard" && (
