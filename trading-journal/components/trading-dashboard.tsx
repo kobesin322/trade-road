@@ -48,7 +48,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { createClient } from "@/lib/supabase/client";
+import { createClient, hasSupabaseBrowserConfig } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { buildDailyProfit, getTradeStats, type Trade, type TradeOutcome } from "@/lib/trades";
 
@@ -200,6 +200,10 @@ export function TradingDashboard({ initialTrades, userId, userEmail }: TradingDa
   }, []);
 
   useEffect(() => {
+    if (!hasSupabaseBrowserConfig()) {
+      return;
+    }
+
     const supabase = createClient();
     const channel = supabase
       .channel(`trades:${userId}`)

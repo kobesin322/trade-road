@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { signInAsAdmin } from "@/app/actions/auth";
-import { createClient } from "@/lib/supabase/client";
+import { createClient, hasSupabaseBrowserConfig } from "@/lib/supabase/client";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -29,6 +29,11 @@ export default function LoginPage() {
     event.preventDefault();
     setLoading(true);
     setMessage(null);
+    if (!hasSupabaseBrowserConfig()) {
+      setLoading(false);
+      setMessage("Supabase is not configured here. Use admin demo access.");
+      return;
+    }
     const supabase = createClient();
 
     if (mode === "sign-up") {
@@ -63,6 +68,11 @@ export default function LoginPage() {
     event.preventDefault();
     setLoading(true);
     setMessage(null);
+    if (!hasSupabaseBrowserConfig()) {
+      setLoading(false);
+      setMessage("Supabase is not configured here. Use admin demo access.");
+      return;
+    }
     const supabase = createClient();
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? window.location.origin;
     const { error } = await supabase.auth.signInWithOtp({
