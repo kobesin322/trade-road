@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -35,6 +35,9 @@ const BINANCE_VENUES = [
 const BOOK_LIMIT = 1000;
 const DISPLAY_LEVELS = 14;
 const IMBALANCE_LEVELS = 20;
+const HEATMAP_COLUMNS = 36;
+const HEATMAP_LEVELS_PER_SIDE = 12;
+const HEATMAP_INTERVAL_MS = 1500;
 
 type SymbolOption = (typeof SYMBOLS)[number];
 type ConnectionStatus = "idle" | "connecting" | "syncing" | "live" | "reconnecting" | "error" | "closed";
@@ -80,6 +83,17 @@ type RenderedBook = {
   bids: BookLevel[];
   asks: BookLevel[];
   metrics: BookMetrics;
+};
+
+type HeatmapCell = {
+  price: number;
+  side: "bid" | "ask";
+  size: number;
+};
+
+type HeatmapColumn = {
+  timestamp: number;
+  cells: Record<string, HeatmapCell>;
 };
 
 function applyLevels(book: Map<number, number>, levels: RawLevel[]) {
@@ -183,6 +197,67 @@ function formatSize(value: number) {
 function formatSignedPercent(value: number) {
   const sign = value >= 0 ? "+" : "";
   return `${sign}${value.toFixed(1)}%`;
+}
+
+function priceKey(price: number) {
+  return price.toFixed(8);
+}
+
+function buildHeatmapRows(bids: BookLevel[], asks: BookLevel[]) {
+  return [
+    ...asks.slice(0, HEATMAP_LEVELS_PER_SIDE).reverse().map((level) => ({
+      price: level.price,
+      side: "ask" as const,
+    })),
+    ...bids.slice(0, HEATMAP_LEVELS_PER_SIDE).map((level) => ({
+      price: level.price,
+      side: "bid" as const,
+    })),
+  ];
+}
+
+function buildHeatmapColumn(bids: BookLevel[], asks: BookLevel[]): HeatmapColumn {
+  const cells: Record<string, HeatmapCell> = {};
+
+  for (const level of asks.slice(0, HEATMAP_LEVELS_PER_SIDE)) {
+    cells[priceKey(level.price)] = {
+      price: level.price,
+      side: "ask",
+      size: level.size,
+    };
+  }
+
+  for (const level of bids.slice(0, HEATMAP_LEVELS_PER_SIDE)) {
+    cells[priceKey(level.price)] = {
+      price: level.price,
+      side: "bid",
+      size: level.size,
+    };
+  }
+
+  return {
+    timestamp: Date.now(),
+    cells,
+  };
+}
+
+function heatmapCellStyle(cell: HeatmapCell | undefined, maxSize: number) {
+  if (!cell) {
+    return {
+      background: "rgba(255,255,255,0.025)",
+      boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.025)",
+    };
+  }
+
+  const weight = Math.min(1, Math.sqrt(cell.size / Math.max(maxSize, 0.0000001)));
+  const alpha = 0.12 + weight * 0.78;
+  const glow = 4 + weight * 18;
+  const color = cell.side === "bid" ? "34,197,94" : "244,63,94";
+
+  return {
+    background: `linear-gradient(180deg, rgba(${color},${Math.min(0.95, alpha + 0.08)}), rgba(${color},${alpha}))`,
+    boxShadow: `0 0 ${glow}px rgba(${color},${weight * 0.42}), inset 0 0 0 1px rgba(${color},${0.18 + weight * 0.28})`,
+  };
 }
 
 function getStatusCopy(status: ConnectionStatus) {
@@ -474,12 +549,51 @@ export function OrderFlowTerminal() {
   const [symbol, setSymbol] = useState<SymbolOption>("BTCUSDT");
   const { asks, bids, connect, disconnect, error, lastEventTime, lastUpdateId, metrics, status, venueName } =
     useBinanceOrderBook(symbol);
+  const [heatmapColumns, setHeatmapColumns] = useState<HeatmapColumn[]>([]);
+  const latestBidsRef = useRef<BookLevel[]>([]);
+  const latestAsksRef = useRef<BookLevel[]>([]);
   const maxCumulative = useMemo(
     () => Math.max(1, ...bids.map((level) => level.cumulative), ...asks.map((level) => level.cumulative)),
     [asks, bids],
   );
   const isWorking = status === "connecting" || status === "syncing" || status === "reconnecting";
   const isConnected = status === "live" || isWorking;
+
+  useEffect(() => {
+    latestBidsRef.current = bids;
+    latestAsksRef.current = asks;
+  }, [asks, bids]);
+
+  useEffect(() => {
+    setHeatmapColumns([]);
+  }, [symbol]);
+
+  useEffect(() => {
+    if (status !== "live") {
+      return;
+    }
+
+    const captureHeatmapColumn = () => {
+      const latestBids = latestBidsRef.current;
+      const latestAsks = latestAsksRef.current;
+
+      if (!latestBids.length || !latestAsks.length) {
+        return;
+      }
+
+      setHeatmapColumns((columns) => [
+        ...columns,
+        buildHeatmapColumn(latestBids, latestAsks),
+      ].slice(-HEATMAP_COLUMNS));
+    };
+
+    captureHeatmapColumn();
+    const interval = window.setInterval(captureHeatmapColumn, HEATMAP_INTERVAL_MS);
+
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, [status]);
 
   return (
     <section className="grid gap-6">
@@ -568,6 +682,7 @@ export function OrderFlowTerminal() {
             <EnginePanel
               asks={asks}
               bids={bids}
+              heatmapColumns={heatmapColumns}
               maxCumulative={maxCumulative}
               metrics={metrics}
               status={status}
@@ -591,6 +706,7 @@ export function OrderFlowTerminal() {
 function EnginePanel({
   asks,
   bids,
+  heatmapColumns,
   maxCumulative,
   metrics,
   status,
@@ -598,6 +714,7 @@ function EnginePanel({
 }: {
   asks: BookLevel[];
   bids: BookLevel[];
+  heatmapColumns: HeatmapColumn[];
   maxCumulative: number;
   metrics: BookMetrics;
   status: ConnectionStatus;
@@ -611,10 +728,10 @@ function EnginePanel({
       <CardHeader>
         <div className="flex items-start justify-between gap-3">
           <div>
-            <CardTitle>Realtime Book Engine</CardTitle>
+            <CardTitle>Market Liquidity Heatmap</CardTitle>
             <p className="mt-1 text-sm text-zinc-400">
-              Step 3 will convert this synchronized book into the scrolling price x
-              time liquidity heatmap.
+              Price x time resting liquidity. Heavy walls glow brighter; lighter
+              positions fade into the tape.
             </p>
           </div>
           <Badge tone={status === "live" ? "win" : "neutral"}>{symbol}</Badge>
@@ -629,7 +746,19 @@ function EnginePanel({
               <MetricTile label="Best ask" value={formatPrice(metrics.bestAsk)} tone="text-rose-300" />
             </div>
 
+            <LiquidityHeatmap
+              asks={asks}
+              bids={bids}
+              columns={heatmapColumns}
+              status={status}
+            />
+
             <div className="overflow-hidden rounded-3xl border border-white/10 bg-zinc-950/70">
+              <div className="grid grid-cols-[0.9fr_1fr_0.9fr] bg-white/[0.04] px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-zinc-500">
+                <span>Cum</span>
+                <span className="text-center">Price</span>
+                <span className="text-right">Resting</span>
+              </div>
               {depthRows.map((level) => {
                 const isAsk = level.price >= (metrics.midPrice ?? Number.POSITIVE_INFINITY);
                 const width = `${Math.max(4, (level.cumulative / maxCumulative) * 100)}%`;
@@ -685,6 +814,116 @@ function MetricTile({ label, tone, value }: { label: string; tone: string; value
     <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
       <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500">{label}</div>
       <div className={cn("mt-2 font-mono text-lg font-black", tone)}>{value}</div>
+    </div>
+  );
+}
+
+function LiquidityHeatmap({
+  asks,
+  bids,
+  columns,
+  status,
+}: {
+  asks: BookLevel[];
+  bids: BookLevel[];
+  columns: HeatmapColumn[];
+  status: ConnectionStatus;
+}) {
+  const rows = useMemo(() => buildHeatmapRows(bids, asks), [asks, bids]);
+  const maxSize = useMemo(() => {
+    const sizes = columns.flatMap((column) =>
+      Object.values(column.cells).map((cell) => cell.size),
+    );
+    return Math.max(0.0000001, ...sizes);
+  }, [columns]);
+  const visibleColumns = columns.length
+    ? columns
+    : Array.from({ length: HEATMAP_COLUMNS }, (_, index) => ({
+        timestamp: Date.now() - (HEATMAP_COLUMNS - index) * HEATMAP_INTERVAL_MS,
+        cells: {},
+      }));
+
+  return (
+    <div className="overflow-hidden rounded-3xl border border-white/10 bg-black/50 p-3">
+      <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <div className="text-xs font-black uppercase tracking-[0.2em] text-zinc-500">
+            Resting liquidity heatmap
+          </div>
+          <div className="mt-1 text-sm text-zinc-400">
+            {columns.length
+              ? `${columns.length} live snapshots at ${HEATMAP_INTERVAL_MS / 1000}s cadence`
+              : status === "live"
+                ? "Collecting live liquidity snapshots..."
+                : "Connect to start collecting liquidity snapshots."}
+          </div>
+        </div>
+        <div className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-500">
+          <span className="flex items-center gap-1">
+            <span className="h-2.5 w-8 rounded-full bg-emerald-400/25" />
+            Light
+          </span>
+          <span className="flex items-center gap-1 text-zinc-300">
+            <span className="h-2.5 w-8 rounded-full bg-emerald-400/80 shadow-[0_0_14px_rgba(34,197,94,0.55)]" />
+            Heavy
+          </span>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto pb-1">
+        <div
+          className="grid min-w-[900px] gap-1"
+          style={{
+            gridTemplateColumns: `6rem repeat(${visibleColumns.length}, minmax(0, 1fr))`,
+          }}
+        >
+          <div className="px-2 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-zinc-500">
+            Price
+          </div>
+          {visibleColumns.map((column, index) => (
+            <div
+              key={`time-${column.timestamp}-${index}`}
+              className="truncate px-1 py-1 text-center text-[9px] font-bold text-zinc-600"
+            >
+              {index % 6 === 0 || index === visibleColumns.length - 1
+                ? new Date(column.timestamp).toLocaleTimeString([], {
+                    minute: "2-digit",
+                    second: "2-digit",
+                  })
+                : ""}
+            </div>
+          ))}
+
+          {rows.map((row) => (
+            <div key={`row-${row.side}-${row.price}`} className="contents">
+              <div
+                className={cn(
+                  "flex items-center rounded-xl bg-white/[0.03] px-2 py-1 font-mono text-[10px] font-black",
+                  row.side === "bid" ? "text-emerald-300" : "text-rose-300",
+                )}
+              >
+                {formatPrice(row.price)}
+              </div>
+              {visibleColumns.map((column, index) => {
+                const cell = column.cells[priceKey(row.price)];
+
+                return (
+                  <div
+                    key={`${row.side}-${row.price}-${column.timestamp}-${index}`}
+                    title={
+                      cell
+                        ? `${row.side.toUpperCase()} ${formatPrice(row.price)} size ${formatSize(cell.size)} @ ${new Date(column.timestamp).toLocaleTimeString()}`
+                        : `${formatPrice(row.price)} no resting liquidity captured`
+                    }
+                    className="h-5 rounded-md transition duration-300"
+                    style={heatmapCellStyle(cell, maxSize)}
+                  />
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

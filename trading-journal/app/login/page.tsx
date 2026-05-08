@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { signInAsAdmin } from "@/app/actions/auth";
 import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
@@ -126,6 +127,15 @@ export default function LoginPage() {
               {mode === "sign-in" ? "Need an account? Sign up" : "Have an account? Sign in"}
             </button>
           </div>
+
+          <form action={signInAsAdmin} className="grid gap-2 border-t border-white/10 pt-4">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
+              Admin demo access
+            </p>
+            <Button type="submit" className="bg-cyan-300 text-slate-950 hover:bg-cyan-200">
+              Login as admin
+            </Button>
+          </form>
 
           <form onSubmit={onMagicLink} className="grid gap-2 border-t border-white/10 pt-4">
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">Or magic link (email only)</p>
