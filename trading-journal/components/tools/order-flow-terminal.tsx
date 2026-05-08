@@ -836,7 +836,7 @@ function LiquidityHeatmap({
     );
     return Math.max(0.0000001, ...sizes);
   }, [columns]);
-  const visibleColumns = columns.length
+  const visibleColumns: HeatmapColumn[] = columns.length
     ? columns
     : Array.from({ length: HEATMAP_COLUMNS }, (_, index) => ({
         timestamp: Date.now() - (HEATMAP_COLUMNS - index) * HEATMAP_INTERVAL_MS,
