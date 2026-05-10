@@ -6,9 +6,14 @@ import { ADMIN_SESSION_COOKIE, isAdminSessionCookie } from "@/lib/auth";
 export async function updateSession(request: NextRequest) {
   const path = request.nextUrl.pathname;
   const isAuthPath = path.startsWith("/login") || path.startsWith("/auth");
+  const isPublicMarketDataPath = path.startsWith("/api/market-data");
   const hasAdminSession = isAdminSessionCookie(
     request.cookies.get(ADMIN_SESSION_COOKIE)?.value,
   );
+
+  if (isPublicMarketDataPath) {
+    return NextResponse.next();
+  }
 
   if (hasAdminSession) {
     if (path === "/login") {
@@ -22,7 +27,7 @@ export async function updateSession(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!supabaseUrl || !supabaseKey) {
-    if (!path.startsWith("/login") && !path.startsWith("/auth")) {
+    if (!isAuthPath) {
       return NextResponse.redirect(new URL("/login", request.url));
     }
     return NextResponse.next();
