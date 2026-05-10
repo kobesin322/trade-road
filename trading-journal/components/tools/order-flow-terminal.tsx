@@ -19,7 +19,27 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
-const SYMBOLS = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT"] as const;
+const SYMBOLS = [
+  "BTCUSDT",
+  "ETHUSDT",
+  "SOLUSDT",
+  "BNBUSDT",
+  "XRPUSDT",
+  "ADAUSDT",
+  "DOGEUSDT",
+  "AVAXUSDT",
+  "LINKUSDT",
+  "LTCUSDT",
+  "BCHUSDT",
+  "DOTUSDT",
+  "UNIUSDT",
+  "AAVEUSDT",
+  "ATOMUSDT",
+  "NEARUSDT",
+  "APTUSDT",
+  "SHIBUSDT",
+  "PEPEUSDT",
+] as const;
 const BINANCE_VENUES = [
   {
     name: "Binance Global",
