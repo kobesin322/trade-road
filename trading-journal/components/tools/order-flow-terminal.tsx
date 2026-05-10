@@ -116,6 +116,17 @@ type HeatmapColumn = {
   cells: Record<string, HeatmapCell>;
 };
 
+type NqQuote = {
+  change: number | null;
+  changePercent: number | null;
+  currency: string;
+  exchange: string;
+  price: number;
+  source: string;
+  symbol: string;
+  timestamp: string;
+};
+
 function applyLevels(book: Map<number, number>, levels: RawLevel[]) {
   for (const [priceText, sizeText] of levels) {
     const price = Number(priceText);
@@ -217,6 +228,15 @@ function formatSize(value: number) {
 function formatSignedPercent(value: number) {
   const sign = value >= 0 ? "+" : "";
   return `${sign}${value.toFixed(1)}%`;
+}
+
+function formatOptionalChange(value: number | null) {
+  if (value === null) {
+    return "--";
+  }
+
+  const sign = value >= 0 ? "+" : "";
+  return `${sign}${value.toFixed(2)}`;
 }
 
 function priceKey(price: number) {
@@ -565,6 +585,92 @@ function useBinanceOrderBook(symbol: SymbolOption) {
   };
 }
 
+function NqFuturesSource() {
+  const [quote, setQuote] = useState<NqQuote | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadQuote = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/market-data/nq", { cache: "no-store" });
+      const payload: unknown = await response.json();
+
+      if (!response.ok) {
+        const message =
+          payload && typeof payload === "object" && "error" in payload
+            ? String((payload as { error: unknown }).error)
+            : "NQ source unavailable.";
+        throw new Error(message);
+      }
+
+      setQuote(payload as NqQuote);
+    } catch (quoteError) {
+      setError(quoteError instanceof Error ? quoteError.message : "NQ source unavailable.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadQuote();
+    const interval = window.setInterval(() => {
+      void loadQuote();
+    }, 30_000);
+
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, [loadQuote]);
+
+  return (
+    <Card className="border-sky-300/20 bg-sky-400/10">
+      <CardContent className="grid gap-4 md:grid-cols-[1fr_auto] md:items-center">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone="blue">Free NQ source</Badge>
+            <span className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">
+              Delayed quote only
+            </span>
+          </div>
+          <div className="mt-3 flex flex-wrap items-end gap-4">
+            <div>
+              <div className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">
+                {quote?.symbol ?? "NQ=F"} Nasdaq-100 E-mini
+              </div>
+              <div className="mt-1 font-mono text-3xl font-black text-white">
+                {quote ? formatPrice(quote.price) : "--"}
+              </div>
+            </div>
+            <div className={cn("pb-1 font-mono text-lg font-black", (quote?.change ?? 0) >= 0 ? "text-emerald-300" : "text-rose-300")}>
+              {quote ? `${formatOptionalChange(quote.change)} (${quote.changePercent?.toFixed(2) ?? "--"}%)` : "--"}
+            </div>
+          </div>
+          <p className="mt-2 text-sm text-zinc-400">
+            Source: {quote?.source ?? "Yahoo Finance delayed futures chart with Stooq fallback"}.
+            This is not CME depth or order book data.
+          </p>
+          <div className="mt-2 text-xs text-zinc-500">
+            {quote ? `${quote.exchange} · ${quote.currency} · ${new Date(quote.timestamp).toLocaleString()}` : "Loading NQ quote..."}
+          </div>
+          {error ? <div className="mt-2 text-sm text-rose-200">{error}</div> : null}
+        </div>
+        <Button
+          type="button"
+          disabled={loading}
+          onClick={() => void loadQuote()}
+          className="bg-sky-300/15 text-sky-100 hover:bg-sky-300/25"
+        >
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+          Refresh NQ
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function OrderFlowTerminal() {
   const [symbol, setSymbol] = useState<SymbolOption>("BTCUSDT");
   const { asks, bids, connect, disconnect, error, lastEventTime, lastUpdateId, metrics, status, venueName } =
@@ -617,6 +723,8 @@ export function OrderFlowTerminal() {
 
   return (
     <section className="grid gap-6">
+      <NqFuturesSource />
+
       <Card className="overflow-hidden border-cyan-300/20 bg-gradient-to-br from-cyan-400/10 via-slate-950 to-rose-500/10">
         <CardHeader>
           <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
