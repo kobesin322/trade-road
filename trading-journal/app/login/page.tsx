@@ -6,7 +6,8 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { createClient } from "@/lib/supabase/client";
+import { signInAsAdmin } from "@/app/actions/auth";
+import { createClient, hasSupabaseBrowserConfig } from "@/lib/supabase/client";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -28,6 +29,11 @@ export default function LoginPage() {
     event.preventDefault();
     setLoading(true);
     setMessage(null);
+    if (!hasSupabaseBrowserConfig()) {
+      setLoading(false);
+      setMessage("Supabase is not configured here. Use admin demo access.");
+      return;
+    }
     const supabase = createClient();
 
     if (mode === "sign-up") {
@@ -62,6 +68,11 @@ export default function LoginPage() {
     event.preventDefault();
     setLoading(true);
     setMessage(null);
+    if (!hasSupabaseBrowserConfig()) {
+      setLoading(false);
+      setMessage("Supabase is not configured here. Use admin demo access.");
+      return;
+    }
     const supabase = createClient();
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? window.location.origin;
     const { error } = await supabase.auth.signInWithOtp({
@@ -126,6 +137,15 @@ export default function LoginPage() {
               {mode === "sign-in" ? "Need an account? Sign up" : "Have an account? Sign in"}
             </button>
           </div>
+
+          <form action={signInAsAdmin} className="grid gap-2 border-t border-white/10 pt-4">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
+              Admin demo access
+            </p>
+            <Button type="submit" className="bg-cyan-300 text-slate-950 hover:bg-cyan-200">
+              Login as admin
+            </Button>
+          </form>
 
           <form onSubmit={onMagicLink} className="grid gap-2 border-t border-white/10 pt-4">
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">Or magic link (email only)</p>
