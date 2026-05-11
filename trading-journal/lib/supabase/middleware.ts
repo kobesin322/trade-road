@@ -22,7 +22,7 @@ export async function updateSession(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!supabaseUrl || !supabaseKey) {
-    if (!path.startsWith("/login") && !path.startsWith("/auth")) {
+    if (!isAuthPath) {
       return NextResponse.redirect(new URL("/login", request.url));
     }
     return NextResponse.next();
