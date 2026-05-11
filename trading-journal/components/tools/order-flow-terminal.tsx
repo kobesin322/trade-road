@@ -116,17 +116,6 @@ type HeatmapColumn = {
   cells: Record<string, HeatmapCell>;
 };
 
-type NqQuote = {
-  change: number | null;
-  changePercent: number | null;
-  currency: string;
-  exchange: string;
-  price: number;
-  source: string;
-  symbol: string;
-  timestamp: string;
-};
-
 function applyLevels(book: Map<number, number>, levels: RawLevel[]) {
   for (const [priceText, sizeText] of levels) {
     const price = Number(priceText);
@@ -228,15 +217,6 @@ function formatSize(value: number) {
 function formatSignedPercent(value: number) {
   const sign = value >= 0 ? "+" : "";
   return `${sign}${value.toFixed(1)}%`;
-}
-
-function formatOptionalChange(value: number | null) {
-  if (value === null) {
-    return "--";
-  }
-
-  const sign = value >= 0 ? "+" : "";
-  return `${sign}${value.toFixed(2)}`;
 }
 
 function priceKey(price: number) {

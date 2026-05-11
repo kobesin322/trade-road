@@ -6,14 +6,9 @@ import { ADMIN_SESSION_COOKIE, isAdminSessionCookie } from "@/lib/auth";
 export async function updateSession(request: NextRequest) {
   const path = request.nextUrl.pathname;
   const isAuthPath = path.startsWith("/login") || path.startsWith("/auth");
-  const isPublicMarketDataPath = path.startsWith("/api/market-data");
   const hasAdminSession = isAdminSessionCookie(
     request.cookies.get(ADMIN_SESSION_COOKIE)?.value,
   );
-
-  if (isPublicMarketDataPath) {
-    return NextResponse.next();
-  }
 
   if (hasAdminSession) {
     if (path === "/login") {
