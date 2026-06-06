@@ -1,61 +1,38 @@
 "use server";
 
-import { and, eq, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { trades } from "@/db/schema";
 import { getSessionUser, isAdminDemoUser } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { buildSampleTradeRows } from "@/lib/seed-trades";
-import { listTradesForUser, rowToTrade } from "@/lib/trade-db";
-import type { Trade, TradeOutcome } from "@/lib/trades";
+import { tradeRecordToTrade } from "@/lib/trade-db";
+import {
+  createPersonalTrade,
+  deletePersonalTrade,
+  listPersonalTrades,
+  type TradeInput,
+  updatePersonalTrade,
+} from "@/lib/trade-service";
+import type { Trade } from "@/lib/trades";
 
-export type TradeInput = {
-  pair: string;
-  date: string;
-  outcome: TradeOutcome;
-  profitPercent: number;
-  profitAmount: number;
-  strategy: Trade["strategy"];
-  position?: Trade["position"] | null;
-  notes?: string | null;
-  chartData: Trade["chartData"];
-};
-
-function requireDbUser(user: NonNullable<Awaited<ReturnType<typeof getSessionUser>>>) {
-  if (isAdminDemoUser(user)) {
-    throw new Error(
-      "Admin demo cannot write to the database. Sign out and sign in with a Supabase account.",
-    );
-  }
-}
+export type { TradeInput };
 
 export async function createTrade(input: TradeInput) {
   const user = await getSessionUser();
   if (!user) {
     throw new Error("Unauthorized");
   }
-  requireDbUser(user);
+  if (isAdminDemoUser(user)) {
+    throw new Error(
+      "Admin demo cannot write to the database. Sign out and sign in with a Supabase account.",
+    );
+  }
 
-  const db = getDb();
-  const [row] = await db
-    .insert(trades)
-    .values({
-      userId: user.id,
-      pair: input.pair,
-      date: new Date(input.date),
-      outcome: input.outcome,
-      profitPercent: String(input.profitPercent),
-      profitAmount: String(input.profitAmount),
-      strategy: input.strategy,
-      position: input.position ?? null,
-      notes: input.notes ?? null,
-      chartData: input.chartData,
-    })
-    .returning();
-
+  const trade = await createPersonalTrade(user.id, input);
   revalidatePath("/");
-  return row ? rowToTrade(row) : null;
+  return trade ? tradeRecordToTrade(trade) : null;
 }
 
 export async function updateTrade(
@@ -63,7 +40,7 @@ export async function updateTrade(
   patch: Partial<
     Pick<
       TradeInput,
-      "pair" | "date" | "outcome" | "profitPercent" | "profitAmount" | "strategy" | "position" | "notes" | "chartData"
+      "pair" | "date" | "outcome" | "profitPercent" | "profitAmount" | "strategy" | "position" | "notes" | "journalHtml" | "screenshots" | "chartData"
     >
   >,
 ) {
@@ -71,37 +48,15 @@ export async function updateTrade(
   if (!user) {
     throw new Error("Unauthorized");
   }
-  requireDbUser(user);
-
-  const db = getDb();
-
-  const definedEntries = Object.entries(patch).filter(([, value]) => value !== undefined);
-  if (definedEntries.length === 0) {
-    return null;
+  if (isAdminDemoUser(user)) {
+    throw new Error(
+      "Admin demo cannot write to the database. Sign out and sign in with a Supabase account.",
+    );
   }
 
-  const [row] = await db
-    .update(trades)
-    .set({
-      ...(patch.pair !== undefined ? { pair: patch.pair } : {}),
-      ...(patch.date !== undefined ? { date: new Date(patch.date) } : {}),
-      ...(patch.outcome !== undefined ? { outcome: patch.outcome } : {}),
-      ...(patch.profitPercent !== undefined
-        ? { profitPercent: String(patch.profitPercent) }
-        : {}),
-      ...(patch.profitAmount !== undefined
-        ? { profitAmount: String(patch.profitAmount) }
-        : {}),
-      ...(patch.strategy !== undefined ? { strategy: patch.strategy } : {}),
-      ...(patch.position !== undefined ? { position: patch.position ?? null } : {}),
-      ...(patch.notes !== undefined ? { notes: patch.notes ?? null } : {}),
-      ...(patch.chartData !== undefined ? { chartData: patch.chartData } : {}),
-    })
-    .where(and(eq(trades.id, id), eq(trades.userId, user.id)))
-    .returning();
-
+  const trade = await updatePersonalTrade(user.id, id, patch);
   revalidatePath("/");
-  return row ? rowToTrade(row) : null;
+  return trade ? tradeRecordToTrade(trade) : null;
 }
 
 export async function deleteTrade(id: string) {
@@ -109,10 +64,13 @@ export async function deleteTrade(id: string) {
   if (!user) {
     throw new Error("Unauthorized");
   }
-  requireDbUser(user);
+  if (isAdminDemoUser(user)) {
+    throw new Error(
+      "Admin demo cannot write to the database. Sign out and sign in with a Supabase account.",
+    );
+  }
 
-  const db = getDb();
-  await db.delete(trades).where(and(eq(trades.id, id), eq(trades.userId, user.id)));
+  await deletePersonalTrade(user.id, id);
   revalidatePath("/");
 }
 
@@ -138,13 +96,13 @@ export async function seedSampleTrades(): Promise<{ ok: boolean; message: string
   if (count > 0) {
     return {
       ok: false,
-      message: "Sample data is only loaded when you have zero trades. Clear trades in Supabase or use a fresh account.",
+      message: "Sample data is only imported when you have zero personal trades.",
     };
   }
 
   await db.insert(trades).values(buildSampleTradeRows(user.id));
   revalidatePath("/");
-  return { ok: true, message: "Loaded the March 2026 demo pack." };
+  return { ok: true, message: "Imported the March 2026 demo pack into your personal journal." };
 }
 
 export async function buildTradesCsv(): Promise<string> {
@@ -152,9 +110,11 @@ export async function buildTradesCsv(): Promise<string> {
   if (!user) {
     throw new Error("Unauthorized");
   }
-  requireDbUser(user);
+  if (isAdminDemoUser(user)) {
+    throw new Error("Admin demo cannot export personal trades.");
+  }
 
-  const list = await listTradesForUser(user.id);
+  const list = await listPersonalTrades(user.id);
   const headers = [
     "id",
     "pair",
@@ -165,6 +125,8 @@ export async function buildTradesCsv(): Promise<string> {
     "strategy",
     "position",
     "notes",
+    "journal_html",
+    "screenshot_count",
   ];
   const escape = (value: string) => `"${value.replaceAll('"', '""')}"`;
   const lines = [
@@ -179,11 +141,23 @@ export async function buildTradesCsv(): Promise<string> {
         String(trade.profitAmount),
         trade.strategy,
         trade.position,
-        "",
+        trade.notes ?? "",
+        trade.journalHtml ?? "",
+        String(trade.screenshots?.length ?? 0),
       ]
         .map((cell) => escape(String(cell)))
         .join(","),
     ),
   ];
   return lines.join("\n");
+}
+
+export async function listTradesAction() {
+  const user = await getSessionUser();
+  if (!user || isAdminDemoUser(user)) {
+    return [] satisfies Trade[];
+  }
+
+  const tradesList = await listPersonalTrades(user.id);
+  return tradesList.map(tradeRecordToTrade);
 }

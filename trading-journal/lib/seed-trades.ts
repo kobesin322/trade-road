@@ -13,6 +13,8 @@ export function buildSampleTradeRows(userId: string): TradeInsert[] {
     strategy: trade.strategy,
     position: trade.position,
     notes: null,
+    journalHtml: null,
+    screenshots: [],
     chartData: trade.chartData,
   }));
 }

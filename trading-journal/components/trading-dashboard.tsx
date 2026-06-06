@@ -41,13 +41,21 @@ import {
 } from "recharts";
 
 import { buildTradesCsv, seedSampleTrades } from "@/app/actions/trades";
+import { updateDemoTradesPreference } from "@/app/actions/preferences";
 import { signOut } from "@/app/actions/auth";
 import { MarketChartsView } from "@/components/charts/market-charts-view";
+import { JournalEntryForm } from "@/components/journal/journal-entry-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
+import { getDemoTrades } from "@/lib/demo-trades";
+import {
+  JOURNAL_STRATEGIES,
+  JOURNAL_STRATEGY_COLORS,
+  type JournalStrategy,
+} from "@/lib/journal-constants";
 import { createClient, hasSupabaseBrowserConfig } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { buildDailyProfit, getTradeStats, type Trade, type TradeOutcome } from "@/lib/trades";
@@ -66,13 +74,9 @@ const toolLinks = [
   },
 ] as const;
 const journalTabs = ["List overview", "Wins Vs Losses", "Strategy overview"] as const;
-const strategies = ["Strategy #1", "Strategy #2", "Strategy #3"] as const;
+const strategies = JOURNAL_STRATEGIES;
 
-const strategyChartColors: Record<Trade["strategy"], string> = {
-  "Strategy #1": "#38bdf8",
-  "Strategy #2": "#facc15",
-  "Strategy #3": "#f8fafc",
-};
+const strategyChartColors = JOURNAL_STRATEGY_COLORS;
 
 function buildStrategyChartData(tradeList: Trade[]) {
   return strategies.map((strategy) => ({
@@ -163,44 +167,62 @@ function ChartPlaceholder({ label = "Loading chart" }: { label?: string }) {
 }
 
 export type TradingDashboardProps = {
-  initialTrades: Trade[];
+  personalTrades: Trade[];
+  demoTradesEnabled: boolean;
+  canUsePersonalJournal: boolean;
   userId: string;
   userEmail: string;
 };
 
-export function TradingDashboard({ initialTrades, userId, userEmail }: TradingDashboardProps) {
+export function TradingDashboard({
+  personalTrades,
+  demoTradesEnabled: initialDemoTradesEnabled,
+  canUsePersonalJournal,
+  userId,
+  userEmail,
+}: TradingDashboardProps) {
   const router = useRouter();
-  const [trades, setTrades] = useState<Trade[]>(initialTrades);
+  const [demoTradesEnabled, setDemoTradesEnabled] = useState(initialDemoTradesEnabled);
+  const displayTrades = useMemo(
+    () => (demoTradesEnabled ? getDemoTrades() : personalTrades),
+    [demoTradesEnabled, personalTrades],
+  );
+  const [trades, setTrades] = useState<Trade[]>(displayTrades);
   const [activeView, setActiveView] = useState<MainView>("Dashboard");
   const [journalTab, setJournalTab] = useState<JournalTab>("List overview");
   const [query, setQuery] = useState("");
   const [outcomeFilter, setOutcomeFilter] = useState<OutcomeFilter>("ALL");
-  const [strategyFilter, setStrategyFilter] = useState<"ALL" | Trade["strategy"]>("ALL");
-  const [selectedTrade, setSelectedTrade] = useState<Trade | null>(initialTrades[0] ?? null);
+  const [strategyFilter, setStrategyFilter] = useState<"ALL" | JournalStrategy>("ALL");
+  const [selectedTrade, setSelectedTrade] = useState<Trade | null>(displayTrades[0] ?? null);
   const [confetti, setConfetti] = useState(false);
   const [chartsReady, setChartsReady] = useState(false);
   const [seedMessage, setSeedMessage] = useState<string | null>(null);
+  const [journalEditorMode, setJournalEditorMode] = useState<"closed" | "create" | "edit">("closed");
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
-    setTrades(initialTrades);
+    setDemoTradesEnabled(initialDemoTradesEnabled);
+  }, [initialDemoTradesEnabled]);
+
+  useEffect(() => {
+    setTrades(displayTrades);
     setSelectedTrade((prev) => {
-      if (!initialTrades.length) {
+      if (!displayTrades.length) {
         return null;
       }
       if (!prev) {
-        return initialTrades[0];
+        return displayTrades[0];
       }
-      return initialTrades.find((trade) => trade.id === prev.id) ?? initialTrades[0];
+      return displayTrades.find((trade) => trade.id === prev.id) ?? displayTrades[0];
     });
-  }, [initialTrades]);
+  }, [displayTrades]);
 
   useEffect(() => {
     setChartsReady(true);
   }, []);
 
   useEffect(() => {
-    if (!hasSupabaseBrowserConfig()) {
+    if (demoTradesEnabled || !canUsePersonalJournal || !hasSupabaseBrowserConfig()) {
       return;
     }
 
@@ -224,7 +246,7 @@ export function TradingDashboard({ initialTrades, userId, userEmail }: TradingDa
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [router, userId]);
+  }, [canUsePersonalJournal, demoTradesEnabled, router, userId]);
 
   const stats = useMemo(() => getTradeStats(trades), [trades]);
   const dailyProfit = useMemo(() => buildDailyProfit(trades), [trades]);
@@ -280,6 +302,15 @@ export function TradingDashboard({ initialTrades, userId, userEmail }: TradingDa
     };
   });
 
+  function handleDemoToggle(enabled: boolean) {
+    setSeedMessage(null);
+    startTransition(async () => {
+      await updateDemoTradesPreference(enabled);
+      setDemoTradesEnabled(enabled);
+      router.refresh();
+    });
+  }
+
   function selectTrade(trade: Trade) {
     setSelectedTrade(trade);
 
@@ -311,28 +342,72 @@ export function TradingDashboard({ initialTrades, userId, userEmail }: TradingDa
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap sm:justify-end">
             <div className="flex flex-col gap-2 text-right text-xs text-zinc-500 sm:text-left">
               <span className="font-semibold text-zinc-300">{userEmail}</span>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge tone={demoTradesEnabled ? "gold" : "blue"}>
+                  {demoTradesEnabled
+                    ? "Demo preview"
+                    : `Personal journal · ${personalTrades.length} trades`}
+                </Badge>
+              </div>
               {seedMessage ? <span className="text-amber-200">{seedMessage}</span> : null}
             </div>
+
+            <div className="flex flex-col gap-1 rounded-2xl border border-white/10 bg-black/30 p-2">
+              <span className="px-1 text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">
+                Demo trades
+              </span>
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  disabled={isPending}
+                  onClick={() => handleDemoToggle(false)}
+                  className={cn(
+                    "h-9 px-3 text-xs font-black",
+                    !demoTradesEnabled
+                      ? "bg-cyan-300 text-slate-950 hover:bg-cyan-200"
+                      : "bg-white/5 text-zinc-300 hover:bg-white/10",
+                  )}
+                >
+                  Off
+                </Button>
+                <Button
+                  type="button"
+                  disabled={isPending}
+                  onClick={() => handleDemoToggle(true)}
+                  className={cn(
+                    "h-9 px-3 text-xs font-black",
+                    demoTradesEnabled
+                      ? "bg-amber-300 text-slate-950 hover:bg-amber-200"
+                      : "bg-white/5 text-zinc-300 hover:bg-white/10",
+                  )}
+                >
+                  On
+                </Button>
+              </div>
+            </div>
+
+            {canUsePersonalJournal ? (
+              <Button
+                type="button"
+                disabled={isPending || demoTradesEnabled}
+                onClick={() => {
+                  setSeedMessage(null);
+                  startTransition(async () => {
+                    const result = await seedSampleTrades();
+                    setSeedMessage(result.message);
+                    if (result.ok) {
+                      router.refresh();
+                    }
+                  });
+                }}
+                className="justify-between bg-white/5 text-zinc-100"
+              >
+                Import demo to journal
+              </Button>
+            ) : null}
             <Button
               type="button"
-              disabled={isPending}
-              onClick={() => {
-                setSeedMessage(null);
-                startTransition(async () => {
-                  const result = await seedSampleTrades();
-                  setSeedMessage(result.message);
-                  if (result.ok) {
-                    router.refresh();
-                  }
-                });
-              }}
-              className="justify-between bg-white/5 text-zinc-100"
-            >
-              Load demo trades
-            </Button>
-            <Button
-              type="button"
-              disabled={!trades.length}
+              disabled={!canUsePersonalJournal || demoTradesEnabled || !personalTrades.length}
               onClick={() => {
                 startTransition(async () => {
                   const csv = await buildTradesCsv();
@@ -347,7 +422,7 @@ export function TradingDashboard({ initialTrades, userId, userEmail }: TradingDa
               }}
               className="justify-between bg-white/5 text-zinc-100"
             >
-              Export CSV
+              Export personal CSV
             </Button>
             <Button className="justify-between bg-cyan-300/10 text-cyan-100">
               March 2026 <ChevronDown className="h-4 w-4" />
@@ -426,6 +501,7 @@ export function TradingDashboard({ initialTrades, userId, userEmail }: TradingDa
             bestWin={bestWin}
             chartsReady={chartsReady}
             dailyProfit={dailyProfit}
+            demoTradesEnabled={demoTradesEnabled}
             maxDailyAbs={maxDailyAbs}
             setActiveView={setActiveView}
             stats={stats}
@@ -435,11 +511,16 @@ export function TradingDashboard({ initialTrades, userId, userEmail }: TradingDa
 
         {activeView === "Journal" && (
           <JournalView
+            canUsePersonalJournal={canUsePersonalJournal}
+            chartsReady={chartsReady}
+            demoTradesEnabled={demoTradesEnabled}
             filteredTrades={filteredTrades}
+            journalEditorMode={journalEditorMode}
             journalTab={journalTab}
             outcomeFilter={outcomeFilter}
             query={query}
             selectedTrade={selectedTrade}
+            setJournalEditorMode={setJournalEditorMode}
             setJournalTab={setJournalTab}
             setOutcomeFilter={setOutcomeFilter}
             setQuery={setQuery}
@@ -448,8 +529,17 @@ export function TradingDashboard({ initialTrades, userId, userEmail }: TradingDa
             strategyFilter={strategyFilter}
             strategySummary={strategySummary}
             trades={trades}
+            onJournalDeleted={() => {
+              setJournalEditorMode("closed");
+              setSelectedTrade(null);
+              router.refresh();
+            }}
+            onJournalSaved={(trade) => {
+              setJournalEditorMode("closed");
+              selectTrade(trade);
+              router.refresh();
+            }}
             onSelectTrade={selectTrade}
-            chartsReady={chartsReady}
           />
         )}
 
@@ -476,6 +566,7 @@ function DashboardView({
   bestWin,
   chartsReady,
   dailyProfit,
+  demoTradesEnabled,
   maxDailyAbs,
   setActiveView,
   stats,
@@ -484,6 +575,7 @@ function DashboardView({
   bestWin: Trade | undefined;
   chartsReady: boolean;
   dailyProfit: ReturnType<typeof buildDailyProfit>;
+  demoTradesEnabled: boolean;
   maxDailyAbs: number;
   setActiveView: (view: MainView) => void;
   stats: ReturnType<typeof getTradeStats>;
@@ -673,8 +765,10 @@ function DashboardView({
                   Best loot drop: {bestWin.pair} on {format(parseISO(bestWin.date), "MMM d")} for{" "}
                   {formatMoney(bestWin.profitAmount)}. Keep farming the clean A+ setups.
                 </>
+              ) : demoTradesEnabled ? (
+                <>Turn demo trades off to view your personal journal, or import the demo pack into your account.</>
               ) : (
-                <>Load demo trades from the header to populate your March scoreboard.</>
+                <>No personal trades yet. Use POST /api/trades or import the demo pack into your journal.</>
               )}
             </p>
           </div>
@@ -689,12 +783,16 @@ function DashboardView({
 }
 
 function JournalView({
+  canUsePersonalJournal,
   chartsReady,
+  demoTradesEnabled,
   filteredTrades,
+  journalEditorMode,
   journalTab,
   outcomeFilter,
   query,
   selectedTrade,
+  setJournalEditorMode,
   setJournalTab,
   setOutcomeFilter,
   setQuery,
@@ -703,28 +801,36 @@ function JournalView({
   strategyFilter,
   strategySummary,
   trades,
+  onJournalDeleted,
+  onJournalSaved,
   onSelectTrade,
 }: {
+  canUsePersonalJournal: boolean;
   chartsReady: boolean;
+  demoTradesEnabled: boolean;
   filteredTrades: Trade[];
+  journalEditorMode: "closed" | "create" | "edit";
   journalTab: JournalTab;
   outcomeFilter: OutcomeFilter;
   query: string;
   selectedTrade: Trade | null;
+  setJournalEditorMode: (mode: "closed" | "create" | "edit") => void;
   setJournalTab: (tab: JournalTab) => void;
   setOutcomeFilter: (filter: OutcomeFilter) => void;
   setQuery: (query: string) => void;
-  setStrategyFilter: (filter: "ALL" | Trade["strategy"]) => void;
+  setStrategyFilter: (filter: "ALL" | JournalStrategy) => void;
   stats: ReturnType<typeof getTradeStats>;
-  strategyFilter: "ALL" | Trade["strategy"];
+  strategyFilter: "ALL" | JournalStrategy;
   strategySummary: {
-    strategy: Trade["strategy"];
+    strategy: JournalStrategy;
     trades: number;
     wins: number;
     winRate: number;
     total: number;
   }[];
   trades: Trade[];
+  onJournalDeleted: () => void;
+  onJournalSaved: (trade: Trade) => void;
   onSelectTrade: (trade: Trade) => void;
 }) {
   return (
@@ -732,11 +838,32 @@ function JournalView({
       <Card className="overflow-hidden">
         <CardHeader>
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <CardTitle>Trade List / Journal</CardTitle>
-              <p className="mt-1 text-sm text-zinc-400">
-                Search, filter, and click a row to inspect the setup.
-              </p>
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <CardTitle>Trade List / Journal</CardTitle>
+                <p className="mt-1 text-sm text-zinc-400">
+                  Search, filter, and click a row to inspect the setup.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  disabled={!canUsePersonalJournal || demoTradesEnabled}
+                  onClick={() => setJournalEditorMode("create")}
+                  className="bg-cyan-300 text-slate-950 hover:bg-cyan-200 disabled:opacity-40"
+                >
+                  Create journal
+                </Button>
+                {selectedTrade && canUsePersonalJournal && !demoTradesEnabled ? (
+                  <Button
+                    type="button"
+                    onClick={() => setJournalEditorMode("edit")}
+                    className="bg-white/5 text-zinc-100"
+                  >
+                    Edit selected
+                  </Button>
+                ) : null}
+              </div>
             </div>
             <div className="grid gap-2 sm:grid-cols-3">
               <label className="relative">
@@ -760,7 +887,7 @@ function JournalView({
               <select
                 value={strategyFilter}
                 onChange={(event) =>
-                  setStrategyFilter(event.target.value as "ALL" | Trade["strategy"])
+                  setStrategyFilter(event.target.value as "ALL" | JournalStrategy)
                 }
                 className="h-11 rounded-2xl border border-white/10 bg-zinc-950 px-3 text-sm font-semibold text-white outline-none focus:border-cyan-300/60"
               >
@@ -872,7 +999,22 @@ function JournalView({
         </CardContent>
       </Card>
 
-      <TradeDetail chartsReady={chartsReady} trade={selectedTrade} />
+      {journalEditorMode === "closed" ? (
+        <TradeDetail
+          chartsReady={chartsReady}
+          canEdit={canUsePersonalJournal && !demoTradesEnabled}
+          trade={selectedTrade}
+          onEdit={() => setJournalEditorMode("edit")}
+        />
+      ) : (
+        <JournalEntryForm
+          mode={journalEditorMode}
+          trade={journalEditorMode === "edit" ? selectedTrade : null}
+          onCancel={() => setJournalEditorMode("closed")}
+          onDeleted={onJournalDeleted}
+          onSaved={onJournalSaved}
+        />
+      )}
     </section>
   );
 }
@@ -911,13 +1053,23 @@ function OutcomePanel({
   );
 }
 
-function TradeDetail({ chartsReady, trade }: { chartsReady: boolean; trade: Trade | null }) {
+function TradeDetail({
+  chartsReady,
+  canEdit,
+  trade,
+  onEdit,
+}: {
+  chartsReady: boolean;
+  canEdit: boolean;
+  trade: Trade | null;
+  onEdit: () => void;
+}) {
   if (!trade) {
     return (
       <Card className="sticky top-4 h-fit overflow-hidden border-cyan-300/20">
         <CardHeader>
           <CardTitle>No trade selected</CardTitle>
-          <p className="mt-1 text-sm text-zinc-400">Load demo trades or pick a row from the list.</p>
+          <p className="mt-1 text-sm text-zinc-400">Pick a row from the journal list to inspect a setup.</p>
         </CardHeader>
       </Card>
     );
@@ -934,10 +1086,53 @@ function TradeDetail({ chartsReady, trade }: { chartsReady: boolean; trade: Trad
             </p>
           </div>
           <Badge tone={trade.outcome === "WIN" ? "win" : "loss"}>{trade.outcome}</Badge>
+          {canEdit ? (
+            <Button type="button" onClick={onEdit} className="bg-white/5 text-zinc-100">
+              Edit
+            </Button>
+          ) : null}
         </div>
       </CardHeader>
       <CardContent>
-        <div className="rounded-3xl border border-white/10 bg-black/25 p-4">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+          <div className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">Strategy</div>
+          <div className="mt-1 text-sm font-semibold text-cyan-100">{trade.strategy}</div>
+        </div>
+
+        {(trade.screenshots?.length ?? 0) > 0 ? (
+          <div className="mt-4 grid gap-2">
+            <div className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">Screenshots</div>
+            <div className="grid grid-cols-2 gap-2">
+              {trade.screenshots?.map((shot) => (
+                <a
+                  key={shot.url}
+                  href={shot.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="overflow-hidden rounded-2xl border border-white/10"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={shot.url} alt={shot.name} className="h-28 w-full object-cover" />
+                </a>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {trade.journalHtml ? (
+          <div className="mt-4 rounded-2xl border border-white/10 bg-black/25 p-4">
+            <div className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">
+              Journal
+            </div>
+            <div
+              className="prose prose-invert max-w-none text-sm leading-relaxed text-zinc-200 prose-p:my-2 prose-ul:my-2"
+              dangerouslySetInnerHTML={{ __html: trade.journalHtml }}
+            />
+          </div>
+        ) : null}
+
+        {trade.chartData.length > 0 ? (
+        <div className="mt-4 rounded-3xl border border-white/10 bg-black/25 p-4">
           <div className="h-56">
             {chartsReady ? (
               <ResponsiveContainer width="100%" height="100%">
@@ -971,6 +1166,7 @@ function TradeDetail({ chartsReady, trade }: { chartsReady: boolean; trade: Trad
             )}
           </div>
         </div>
+        ) : null}
         <div className="mt-4 grid grid-cols-2 gap-3">
           <div className="rounded-2xl bg-white/[0.05] p-4">
             <div className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">Return</div>
@@ -990,9 +1186,11 @@ function TradeDetail({ chartsReady, trade }: { chartsReady: boolean; trade: Trad
             <Crosshair className="h-4 w-4" />
             Coach note
           </div>
-          {trade.outcome === "WIN"
-            ? "Great execution. Screenshot the setup and tag the trigger so this edge becomes repeatable."
-            : "Small tuition paid. Identify the invalidation miss and keep the loss inside the planned box."}
+          {trade.journalHtml
+            ? "Review your journal entry and keep refining the playbook."
+            : trade.outcome === "WIN"
+              ? "Great execution. Add screenshots and journal notes so this edge becomes repeatable."
+              : "Small tuition paid. Document the invalidation miss and keep the loss inside the planned box."}
         </div>
       </CardContent>
     </Card>

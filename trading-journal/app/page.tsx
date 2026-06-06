@@ -1,8 +1,9 @@
 import { redirect } from "next/navigation";
 
 import { TradingDashboard } from "@/components/trading-dashboard";
-import { getSessionUser } from "@/lib/auth";
+import { getSessionUser, isAdminDemoUser } from "@/lib/auth";
 import { listTradesForUser } from "@/lib/trade-db";
+import { getDemoTradesEnabled } from "@/lib/user-preferences";
 
 export const dynamic = "force-dynamic";
 
@@ -12,13 +13,16 @@ export default async function Home() {
     redirect("/login");
   }
 
-  const initialTrades = process.env.DATABASE_URL
-    ? await listTradesForUser(user.id)
-    : [];
+  const demoTradesEnabled = await getDemoTradesEnabled(user.id);
+  const canUsePersonalJournal = Boolean(process.env.DATABASE_URL) && !isAdminDemoUser(user);
+  const personalTrades =
+    canUsePersonalJournal ? await listTradesForUser(user.id) : [];
 
   return (
     <TradingDashboard
-      initialTrades={initialTrades}
+      canUsePersonalJournal={canUsePersonalJournal}
+      demoTradesEnabled={demoTradesEnabled}
+      personalTrades={personalTrades}
       userEmail={user.email ?? ""}
       userId={user.id}
     />
