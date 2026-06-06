@@ -116,6 +116,32 @@ type HeatmapColumn = {
   cells: Record<string, HeatmapCell>;
 };
 
+type NqQuote = {
+  change: number | null;
+  changePercent: number | null;
+  currency: string;
+  exchange: string;
+  high: number | null;
+  low: number | null;
+  open: number | null;
+  price: number;
+  source: string;
+  symbol: string;
+  timestamp: string;
+};
+
+function formatOptionalChange(value: number | null) {
+  if (value === null || !Number.isFinite(value)) {
+    return "--";
+  }
+
+  const sign = value >= 0 ? "+" : "";
+  return `${sign}${value.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
 function applyLevels(book: Map<number, number>, levels: RawLevel[]) {
   for (const [priceText, sizeText] of levels) {
     const price = Number(priceText);
@@ -633,7 +659,9 @@ function NqFuturesSource() {
             This is not CME depth or order book data.
           </p>
           <div className="mt-2 text-xs text-zinc-500">
-            {quote ? `${quote.exchange} · ${quote.currency} · ${new Date(quote.timestamp).toLocaleString()}` : "Loading NQ quote..."}
+            {quote
+              ? `${quote.exchange} · ${quote.currency} · ${new Date(quote.timestamp).toLocaleString("en-US")}`
+              : "Loading NQ quote..."}
           </div>
           {error ? <div className="mt-2 text-sm text-rose-200">{error}</div> : null}
         </div>
@@ -653,6 +681,7 @@ function NqFuturesSource() {
 
 export function OrderFlowTerminal() {
   const [symbol, setSymbol] = useState<SymbolOption>("BTCUSDT");
+  const [controlsMounted, setControlsMounted] = useState(false);
   const { asks, bids, connect, disconnect, error, lastEventTime, lastUpdateId, metrics, status, venueName } =
     useBinanceOrderBook(symbol);
   const [heatmapColumns, setHeatmapColumns] = useState<HeatmapColumn[]>([]);
@@ -664,6 +693,10 @@ export function OrderFlowTerminal() {
   );
   const isWorking = status === "connecting" || status === "syncing" || status === "reconnecting";
   const isConnected = status === "live" || isWorking;
+
+  useEffect(() => {
+    setControlsMounted(true);
+  }, []);
 
   useEffect(() => {
     latestBidsRef.current = bids;
@@ -722,18 +755,27 @@ export function OrderFlowTerminal() {
             <div className="grid gap-3 rounded-3xl border border-white/10 bg-black/30 p-3 sm:grid-cols-[1fr_auto_auto]">
               <label className="grid gap-1 text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">
                 Symbol
-                <select
-                  value={symbol}
-                  disabled={isConnected}
-                  onChange={(event) => setSymbol(event.target.value as SymbolOption)}
-                  className="h-11 min-w-40 rounded-2xl border border-white/10 bg-zinc-950 px-3 text-sm font-black text-white outline-none transition focus:border-cyan-300/60 disabled:opacity-60"
-                >
-                  {SYMBOLS.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
+                {controlsMounted ? (
+                  <select
+                    value={symbol}
+                    disabled={isConnected}
+                    onChange={(event) => setSymbol(event.target.value as SymbolOption)}
+                    className="h-11 min-w-40 rounded-2xl border border-white/10 bg-zinc-950 px-3 text-sm font-black text-white outline-none transition focus:border-cyan-300/60 disabled:opacity-60"
+                  >
+                    {SYMBOLS.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <div
+                    aria-hidden
+                    className="flex h-11 min-w-40 items-center rounded-2xl border border-white/10 bg-zinc-950 px-3 text-sm font-black text-white"
+                  >
+                    {symbol}
+                  </div>
+                )}
               </label>
 
               <div className="flex items-end">
@@ -947,7 +989,7 @@ function LiquidityHeatmap({
   const visibleColumns: HeatmapColumn[] = columns.length
     ? columns
     : Array.from({ length: HEATMAP_COLUMNS }, (_, index) => ({
-        timestamp: Date.now() - (HEATMAP_COLUMNS - index) * HEATMAP_INTERVAL_MS,
+        timestamp: index * HEATMAP_INTERVAL_MS,
         cells: {},
       }));
 
@@ -994,7 +1036,7 @@ function LiquidityHeatmap({
               className="truncate px-1 py-1 text-center text-[9px] font-bold text-zinc-600"
             >
               {index % 6 === 0 || index === visibleColumns.length - 1
-                ? new Date(column.timestamp).toLocaleTimeString([], {
+                ? new Date(column.timestamp).toLocaleTimeString("en-US", {
                     minute: "2-digit",
                     second: "2-digit",
                   })
@@ -1020,7 +1062,7 @@ function LiquidityHeatmap({
                     key={`${row.side}-${row.price}-${column.timestamp}-${index}`}
                     title={
                       cell
-                        ? `${row.side.toUpperCase()} ${formatPrice(row.price)} size ${formatSize(cell.size)} @ ${new Date(column.timestamp).toLocaleTimeString()}`
+                        ? `${row.side.toUpperCase()} ${formatPrice(row.price)} size ${formatSize(cell.size)} @ ${new Date(column.timestamp).toLocaleTimeString("en-US")}`
                         : `${formatPrice(row.price)} no resting liquidity captured`
                     }
                     className="h-5 rounded-md transition duration-300"
@@ -1166,7 +1208,7 @@ function MetricsPanel({
           <div className="flex justify-between gap-3 rounded-2xl bg-white/[0.04] px-3 py-2">
             <span className="text-zinc-500">Last event</span>
             <span className="font-mono font-semibold text-zinc-200">
-              {lastEventTime ? new Date(lastEventTime).toLocaleTimeString() : "--"}
+              {lastEventTime ? new Date(lastEventTime).toLocaleTimeString("en-US") : "--"}
             </span>
           </div>
         </CardContent>
