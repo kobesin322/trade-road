@@ -15,7 +15,6 @@ import {
   Crosshair,
   Flame,
   Gauge,
-  LineChart,
   ListFilter,
   Search,
   Sparkles,
@@ -43,6 +42,7 @@ import {
 
 import { buildTradesCsv, seedSampleTrades } from "@/app/actions/trades";
 import { signOut } from "@/app/actions/auth";
+import { MarketChartsView } from "@/components/charts/market-charts-view";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -453,14 +453,7 @@ export function TradingDashboard({ initialTrades, userId, userEmail }: TradingDa
           />
         )}
 
-        {activeView === "Charts" && (
-          <ChartsView
-            chartsReady={chartsReady}
-            selectedTrade={selectedTrade}
-            trades={trades}
-            onSelectTrade={selectTrade}
-          />
-        )}
+        {activeView === "Charts" && <MarketChartsView chartsReady={chartsReady} />}
 
         {activeView === "Calendar" && (
           <CalendarView
@@ -1003,100 +996,6 @@ function TradeDetail({ chartsReady, trade }: { chartsReady: boolean; trade: Trad
         </div>
       </CardContent>
     </Card>
-  );
-}
-
-function ChartsView({
-  chartsReady,
-  selectedTrade,
-  trades,
-  onSelectTrade,
-}: {
-  chartsReady: boolean;
-  selectedTrade: Trade | null;
-  trades: Trade[];
-  onSelectTrade: (trade: Trade) => void;
-}) {
-  if (!trades.length) {
-    return (
-      <section className="grid gap-6">
-        <Card className="border-white/10 bg-white/[0.04] p-8 text-center text-zinc-400">
-          No trades yet. Use <span className="font-semibold text-white">Load demo trades</span> in the header to
-          populate charts.
-        </Card>
-      </section>
-    );
-  }
-
-  const selected = selectedTrade ?? trades[0];
-
-  return (
-    <section className="grid gap-6">
-      <Card className="overflow-hidden bg-gradient-to-br from-cyan-400/10 to-fuchsia-500/10">
-        <CardHeader>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <CardTitle>Chart Overview</CardTitle>
-              <p className="mt-1 text-sm text-zinc-400">
-                Mini trade cards with realistic fake market paths for fast visual replay.
-              </p>
-            </div>
-            <Badge tone={selected.outcome === "WIN" ? "win" : "loss"}>Selected: {selected.pair}</Badge>
-          </div>
-        </CardHeader>
-      </Card>
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {trades.map((trade) => (
-          <button
-            key={trade.id}
-            type="button"
-            onClick={() => onSelectTrade(trade)}
-            className={cn(
-              "group rounded-[1.75rem] border border-white/10 bg-white/[0.04] p-4 text-left shadow-2xl shadow-black/20 transition hover:-translate-y-1 hover:border-cyan-300/50",
-              selected.id === trade.id && "border-cyan-300/60 bg-cyan-300/10",
-            )}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="text-xl font-black text-white">{trade.pair}</div>
-                <div className="text-sm text-zinc-500">{format(parseISO(trade.date), "MMM d, yyyy")}</div>
-              </div>
-              <Badge tone={trade.outcome === "WIN" ? "win" : "loss"}>{trade.outcome}</Badge>
-            </div>
-            <div className="mt-4 h-32 rounded-3xl border border-white/10 bg-black/30 p-3">
-              {chartsReady ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <RechartsLineChart data={trade.chartData}>
-                    <XAxis dataKey="time" hide />
-                    <YAxis hide domain={["dataMin", "dataMax"]} />
-                    <Line
-                      type="monotone"
-                      dataKey="price"
-                      stroke={trade.outcome === "WIN" ? "#22c55e" : "#fb7185"}
-                      strokeWidth={3}
-                      dot={false}
-                    />
-                  </RechartsLineChart>
-                </ResponsiveContainer>
-              ) : (
-                <ChartPlaceholder label="Replay loading" />
-              )}
-            </div>
-            <div className="mt-4 flex items-center justify-between">
-              <div>
-                <div className={cn("text-3xl font-black", trade.profitPercent >= 0 ? "text-emerald-300" : "text-rose-300")}>
-                  {formatPercent(trade.profitPercent)}
-                </div>
-                <div className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">
-                  {trade.strategy}
-                </div>
-              </div>
-              <LineChart className="h-8 w-8 text-cyan-200 opacity-70 transition group-hover:scale-110" />
-            </div>
-          </button>
-        ))}
-      </div>
-    </section>
   );
 }
 
