@@ -4,7 +4,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { trades } from "@/db/schema";
-import { getSessionUser } from "@/lib/auth";
+import { getSessionUser, isAdminDemoUser } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { buildSampleTradeRows } from "@/lib/seed-trades";
 import { listTradesForUser, rowToTrade } from "@/lib/trade-db";
@@ -22,11 +22,20 @@ export type TradeInput = {
   chartData: Trade["chartData"];
 };
 
+function requireDbUser(user: NonNullable<Awaited<ReturnType<typeof getSessionUser>>>) {
+  if (isAdminDemoUser(user)) {
+    throw new Error(
+      "Admin demo cannot write to the database. Sign out and sign in with a Supabase account.",
+    );
+  }
+}
+
 export async function createTrade(input: TradeInput) {
   const user = await getSessionUser();
   if (!user) {
     throw new Error("Unauthorized");
   }
+  requireDbUser(user);
 
   const db = getDb();
   const [row] = await db
@@ -62,6 +71,7 @@ export async function updateTrade(
   if (!user) {
     throw new Error("Unauthorized");
   }
+  requireDbUser(user);
 
   const db = getDb();
 
@@ -99,6 +109,7 @@ export async function deleteTrade(id: string) {
   if (!user) {
     throw new Error("Unauthorized");
   }
+  requireDbUser(user);
 
   const db = getDb();
   await db.delete(trades).where(and(eq(trades.id, id), eq(trades.userId, user.id)));
@@ -109,6 +120,13 @@ export async function seedSampleTrades(): Promise<{ ok: boolean; message: string
   const user = await getSessionUser();
   if (!user) {
     return { ok: false, message: "You must be signed in." };
+  }
+  if (isAdminDemoUser(user)) {
+    return {
+      ok: false,
+      message:
+        "Admin demo cannot save trades. Sign out and sign in with a Supabase account, then try again.",
+    };
   }
 
   const db = getDb();
@@ -134,6 +152,7 @@ export async function buildTradesCsv(): Promise<string> {
   if (!user) {
     throw new Error("Unauthorized");
   }
+  requireDbUser(user);
 
   const list = await listTradesForUser(user.id);
   const headers = [

@@ -142,6 +142,10 @@ export default function LoginPage() {
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
               Admin demo access
             </p>
+            <p className="text-xs text-zinc-500">
+              Offline preview only. With Supabase + database configured, sign in above to save
+              trades.
+            </p>
             <Button type="submit" className="bg-cyan-300 text-slate-950 hover:bg-cyan-200">
               Login as admin
             </Button>

@@ -14,6 +14,10 @@ export function isAdminSessionCookie(value?: string) {
   return value === ADMIN_SESSION_VALUE;
 }
 
+export function isAdminDemoUser(user: { id: string }) {
+  return user.id === adminDemoUser.id;
+}
+
 export async function getSessionUser() {
   const cookieStore = await cookies();
   if (isAdminSessionCookie(cookieStore.get(ADMIN_SESSION_COOKIE)?.value)) {
