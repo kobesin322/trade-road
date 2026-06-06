@@ -3,6 +3,7 @@
 import { format, parseISO } from "date-fns";
 import {
   ArrowDownUp,
+  BarChart3,
   Loader2,
   Minus,
   Plus,
@@ -33,6 +34,7 @@ import {
   RebalanceModal,
   TakeProfitModal,
 } from "@/components/ls-portfolio/ls-portfolio-modals";
+import { BetaReferenceModal } from "@/components/ls-portfolio/beta-reference-modal";
 import {
   formatOverviewDayLabel,
   OverviewDatePicker,
@@ -93,6 +95,7 @@ export function LSPortfolioDashboard({
   const [cashPool, setCashPool] = useState<"long" | "short">("long");
   const [cashAmount, setCashAmount] = useState("");
   const [showEvents, setShowEvents] = useState(true);
+  const [betaRefOpen, setBetaRefOpen] = useState(false);
 
   const showToast = useCallback((message: string, tone: "success" | "error" | "info" = "info") => {
     setToast({ message, tone });
@@ -355,6 +358,14 @@ export function LSPortfolioDashboard({
                 className="bg-white/5 text-zinc-200"
               >
                 Copy prior day
+              </Button>
+              <Button
+                type="button"
+                onClick={() => setBetaRefOpen(true)}
+                className="bg-violet-400/15 text-violet-100"
+              >
+                <BarChart3 className="h-4 w-4" />
+                Beta reference
               </Button>
               <Button type="button" onClick={() => setRebalanceOpen(true)} className="bg-cyan-300/15 text-cyan-100">
                 <ArrowDownUp className="h-4 w-4" />
@@ -774,6 +785,12 @@ export function LSPortfolioDashboard({
           </CardContent>
         ) : null}
       </Card>
+
+      <BetaReferenceModal
+        open={betaRefOpen}
+        onClose={() => setBetaRefOpen(false)}
+        snapshotDate={selectedDate}
+      />
 
       <TakeProfitModal
         open={Boolean(takeProfitPos)}
