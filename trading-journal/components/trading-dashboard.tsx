@@ -1,12 +1,15 @@
 "use client";
 
 import {
+  addMonths,
   eachDayOfInterval,
   endOfMonth,
   format,
   getDay,
+  isToday,
   parseISO,
   startOfMonth,
+  subMonths,
 } from "date-fns";
 import {
   ArrowUpRight,
@@ -198,6 +201,10 @@ export function TradingDashboard({
   const [chartsReady, setChartsReady] = useState(false);
   const [seedMessage, setSeedMessage] = useState<string | null>(null);
   const [journalEditorMode, setJournalEditorMode] = useState<"closed" | "create" | "edit">("closed");
+  const [calendarMonth, setCalendarMonth] = useState(() => startOfMonth(new Date()));
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState(() =>
+    format(new Date(), "yyyy-MM-dd"),
+  );
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -249,7 +256,7 @@ export function TradingDashboard({
   }, [canUsePersonalJournal, demoTradesEnabled, router, userId]);
 
   const stats = useMemo(() => getTradeStats(trades), [trades]);
-  const dailyProfit = useMemo(() => buildDailyProfit(trades), [trades]);
+  const dailyProfit = useMemo(() => buildDailyProfit(trades, calendarMonth), [calendarMonth, trades]);
   const tradesByDate = useMemo(
     () =>
       trades.reduce<Record<string, Trade[]>>((days, trade) => {
@@ -276,12 +283,17 @@ export function TradingDashboard({
   }, [outcomeFilter, query, strategyFilter, trades]);
   const strategyChartData = useMemo(() => buildStrategyChartData(trades), [trades]);
   const bestWin = stats.biggestWin ?? trades[0];
-  const calendarStart = startOfMonth(new Date(2026, 2, 1));
-  const calendarDays = eachDayOfInterval({
-    start: calendarStart,
-    end: endOfMonth(calendarStart),
-  });
-  const calendarOffset = getDay(calendarStart);
+  const calendarLabel = format(calendarMonth, "MMMM yyyy");
+  const calendarDays = useMemo(
+    () =>
+      eachDayOfInterval({
+        start: calendarMonth,
+        end: endOfMonth(calendarMonth),
+      }),
+    [calendarMonth],
+  );
+  const calendarOffset = getDay(calendarMonth);
+  const selectedDayTrades = tradesByDate[selectedCalendarDate] ?? [];
   const maxDailyAbs = Math.max(
     1,
     ...dailyProfit.map((day) => Math.abs(day.profit)),
@@ -335,8 +347,7 @@ export function TradingDashboard({
               Trading Journal
             </h1>
             <p className="mt-2 max-w-2xl text-sm text-zinc-400 sm:text-base">
-              Stack clean entries, protect streaks, and turn every March 2026 setup
-              into scoreable feedback.
+              Stack clean entries, protect streaks, and turn every setup into scoreable feedback.
             </p>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap sm:justify-end">
@@ -424,9 +435,32 @@ export function TradingDashboard({
             >
               Export personal CSV
             </Button>
-            <Button className="justify-between bg-cyan-300/10 text-cyan-100">
-              March 2026 <ChevronDown className="h-4 w-4" />
-            </Button>
+            <div className="relative">
+              <Button
+                type="button"
+                onClick={() => setActiveView("Calendar")}
+                className="relative justify-between bg-cyan-300/10 text-cyan-100"
+              >
+                {calendarLabel}
+                <ChevronDown className="h-4 w-4" />
+              </Button>
+              <input
+                type="month"
+                value={format(calendarMonth, "yyyy-MM")}
+                onChange={(event) => {
+                  const [year, month] = event.target.value.split("-").map(Number);
+                  if (!year || !month) {
+                    return;
+                  }
+                  const nextMonth = startOfMonth(new Date(year, month - 1, 1));
+                  setCalendarMonth(nextMonth);
+                  setSelectedCalendarDate(format(nextMonth, "yyyy-MM-dd"));
+                  setActiveView("Calendar");
+                }}
+                className="absolute inset-0 cursor-pointer opacity-0"
+                aria-label="Select calendar month"
+              />
+            </div>
             <Button
               type="button"
               disabled={!bestWin}
@@ -499,6 +533,7 @@ export function TradingDashboard({
         {activeView === "Dashboard" && (
           <DashboardView
             bestWin={bestWin}
+            calendarLabel={calendarLabel}
             chartsReady={chartsReady}
             dailyProfit={dailyProfit}
             demoTradesEnabled={demoTradesEnabled}
@@ -548,7 +583,13 @@ export function TradingDashboard({
         {activeView === "Calendar" && (
           <CalendarView
             calendarDays={calendarDays}
+            calendarLabel={calendarLabel}
+            calendarMonth={calendarMonth}
             calendarOffset={calendarOffset}
+            selectedCalendarDate={selectedCalendarDate}
+            selectedDayTrades={selectedDayTrades}
+            setCalendarMonth={setCalendarMonth}
+            setSelectedCalendarDate={setSelectedCalendarDate}
             tradeCount={trades.length}
             tradesByDate={tradesByDate}
             onSelectTrade={(trade) => {
@@ -564,6 +605,7 @@ export function TradingDashboard({
 
 function DashboardView({
   bestWin,
+  calendarLabel,
   chartsReady,
   dailyProfit,
   demoTradesEnabled,
@@ -573,6 +615,7 @@ function DashboardView({
   strategyChartData,
 }: {
   bestWin: Trade | undefined;
+  calendarLabel: string;
   chartsReady: boolean;
   dailyProfit: ReturnType<typeof buildDailyProfit>;
   demoTradesEnabled: boolean;
@@ -585,7 +628,7 @@ function DashboardView({
     {
       title: "Total Profit",
       value: `$${moneyFormatter.format(stats.totalProfit)}`,
-      helper: "March bankroll boost",
+      helper: `${calendarLabel} bankroll boost`,
       icon: ArrowUpRight,
       tone: "from-emerald-400/20 to-cyan-400/10",
     },
@@ -695,7 +738,7 @@ function DashboardView({
               <div>
                 <CardTitle>Profit per Day</CardTitle>
                 <p className="mt-1 text-sm text-zinc-400">
-                  Every March candle gets a scorecard: green claims, red lessons.
+                  Daily profit heatmap for {calendarLabel}.
                 </p>
               </div>
               <Badge tone="gold">31 days</Badge>
@@ -1199,17 +1242,41 @@ function TradeDetail({
 
 function CalendarView({
   calendarDays,
+  calendarLabel,
+  calendarMonth,
   calendarOffset,
+  selectedCalendarDate,
+  selectedDayTrades,
+  setCalendarMonth,
+  setSelectedCalendarDate,
   tradeCount,
   tradesByDate,
   onSelectTrade,
 }: {
   calendarDays: Date[];
+  calendarLabel: string;
+  calendarMonth: Date;
   calendarOffset: number;
+  selectedCalendarDate: string;
+  selectedDayTrades: Trade[];
+  setCalendarMonth: (month: Date) => void;
+  setSelectedCalendarDate: (date: string) => void;
   tradeCount: number;
   tradesByDate: Record<string, Trade[]>;
   onSelectTrade: (trade: Trade) => void;
 }) {
+  function shiftMonth(delta: number) {
+    const nextMonth = delta > 0 ? addMonths(calendarMonth, 1) : subMonths(calendarMonth, 1);
+    setCalendarMonth(startOfMonth(nextMonth));
+    setSelectedCalendarDate(format(startOfMonth(nextMonth), "yyyy-MM-dd"));
+  }
+
+  function goToToday() {
+    const today = new Date();
+    setCalendarMonth(startOfMonth(today));
+    setSelectedCalendarDate(format(today, "yyyy-MM-dd"));
+  }
+
   return (
     <section className="grid gap-6">
       <Card className="overflow-hidden">
@@ -1218,12 +1285,49 @@ function CalendarView({
             <div>
               <CardTitle>Calendar View</CardTitle>
               <p className="mt-1 text-sm text-zinc-400">
-                Month tab · March 2026 daily trades with return badges.
+                {calendarLabel} daily trades with return badges. Click a day to select it.
               </p>
             </div>
-            <Badge tone="blue">
-              <CalendarDays className="h-3.5 w-3.5" /> Month
-            </Badge>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                onClick={() => shiftMonth(-1)}
+                className="bg-white/5 text-zinc-100"
+              >
+                Prev
+              </Button>
+              <div className="relative">
+                <Badge tone="blue" className="gap-2 px-3 py-2">
+                  <CalendarDays className="h-3.5 w-3.5" />
+                  {calendarLabel}
+                </Badge>
+                <input
+                  type="month"
+                  value={format(calendarMonth, "yyyy-MM")}
+                  onChange={(event) => {
+                    const [year, month] = event.target.value.split("-").map(Number);
+                    if (!year || !month) {
+                      return;
+                    }
+                    const nextMonth = startOfMonth(new Date(year, month - 1, 1));
+                    setCalendarMonth(nextMonth);
+                    setSelectedCalendarDate(format(nextMonth, "yyyy-MM-dd"));
+                  }}
+                  className="absolute inset-0 cursor-pointer opacity-0"
+                  aria-label="Select month"
+                />
+              </div>
+              <Button
+                type="button"
+                onClick={() => shiftMonth(1)}
+                className="bg-white/5 text-zinc-100"
+              >
+                Next
+              </Button>
+              <Button type="button" onClick={goToToday} className="bg-cyan-300/10 text-cyan-100">
+                Today
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -1241,14 +1345,31 @@ function CalendarView({
             {calendarDays.map((day) => {
               const dateKey = format(day, "yyyy-MM-dd");
               const dayTrades = tradesByDate[dateKey] ?? [];
+              const isSelected = selectedCalendarDate === dateKey;
 
               return (
-                <div
+                <button
                   key={dateKey}
-                  className="min-h-28 rounded-3xl border border-white/10 bg-white/[0.04] p-2 transition hover:border-cyan-300/40 hover:bg-cyan-300/10 sm:p-3"
+                  type="button"
+                  onClick={() => setSelectedCalendarDate(dateKey)}
+                  className={cn(
+                    "min-h-28 rounded-3xl border p-2 text-left transition sm:p-3",
+                    isSelected
+                      ? "border-cyan-300/70 bg-cyan-300/15 shadow-[0_0_24px_rgba(34,211,238,0.18)]"
+                      : "border-white/10 bg-white/[0.04] hover:border-cyan-300/40 hover:bg-cyan-300/10",
+                    isToday(day) && !isSelected && "border-cyan-300/30",
+                  )}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-black text-white">{format(day, "d")}</span>
+                    <span
+                      className={cn(
+                        "font-black",
+                        isSelected ? "text-cyan-100" : "text-white",
+                        isToday(day) && "text-cyan-200",
+                      )}
+                    >
+                      {format(day, "d")}
+                    </span>
                     {dayTrades.length > 0 && (
                       <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold text-zinc-300">
                         {dayTrades.length}
@@ -1257,26 +1378,76 @@ function CalendarView({
                   </div>
                   <div className="mt-2 grid gap-1.5">
                     {dayTrades.map((trade) => (
-                      <button
+                      <span
                         key={trade.id}
-                        type="button"
-                        onClick={() => onSelectTrade(trade)}
+                        role="button"
+                        tabIndex={0}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onSelectTrade(trade);
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            onSelectTrade(trade);
+                          }
+                        }}
                         className={cn(
-                          "rounded-2xl border px-2 py-1.5 text-left text-[10px] font-black uppercase leading-tight transition hover:scale-[1.02]",
+                          "block rounded-2xl border px-2 py-1.5 text-[10px] font-black uppercase leading-tight transition hover:scale-[1.02]",
                           trade.outcome === "WIN"
                             ? "border-emerald-400/30 bg-emerald-400/15 text-emerald-100"
                             : "border-rose-400/30 bg-rose-500/15 text-rose-100",
                         )}
                       >
                         <div className="truncate">{trade.pair}</div>
-                        <div>{trade.outcome} · {formatPercent(trade.profitPercent)}</div>
-                      </button>
+                        <div>
+                          {trade.outcome} · {formatPercent(trade.profitPercent)}
+                        </div>
+                      </span>
                     ))}
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border-cyan-300/20 bg-cyan-300/10">
+        <CardContent className="grid gap-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="text-xs font-black uppercase tracking-[0.2em] text-cyan-100">
+                Selected day
+              </div>
+              <div className="mt-1 text-2xl font-black text-white">
+                {format(parseISO(selectedCalendarDate), "EEEE, MMMM d, yyyy")}
+              </div>
+            </div>
+            <Badge tone={selectedDayTrades.length ? "blue" : "neutral"}>
+              {selectedDayTrades.length} trade{selectedDayTrades.length === 1 ? "" : "s"}
+            </Badge>
+          </div>
+          {selectedDayTrades.length ? (
+            <div className="grid gap-2 sm:grid-cols-2">
+              {selectedDayTrades.map((trade) => (
+                <button
+                  key={trade.id}
+                  type="button"
+                  onClick={() => onSelectTrade(trade)}
+                  className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-left transition hover:border-cyan-300/40"
+                >
+                  <div className="font-black text-white">{trade.pair}</div>
+                  <div className="mt-1 text-sm text-zinc-400">
+                    {trade.strategy} · {trade.outcome} · {formatPercent(trade.profitPercent)}
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-zinc-300">No trades logged for this day.</p>
+          )}
         </CardContent>
       </Card>
 

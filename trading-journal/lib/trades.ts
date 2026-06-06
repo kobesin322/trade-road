@@ -1,5 +1,7 @@
 import type { JournalStrategy, TradeScreenshot } from "@/lib/journal-constants";
 
+import { eachDayOfInterval, endOfMonth, format, startOfMonth } from "date-fns";
+
 export type TradeOutcome = "WIN" | "LOSS";
 
 export type Trade = {
@@ -282,24 +284,27 @@ export const sampleTrades: Trade[] = [
   },
 ];
 
-export const march2026Days = Array.from({ length: 31 }, (_, index) => {
-  const day = index + 1;
-  return {
-    date: `2026-03-${String(day).padStart(2, "0")}`,
-    day,
-  };
-});
+export function getMonthDays(referenceDate = new Date()) {
+  const monthStart = startOfMonth(referenceDate);
+  const monthEnd = endOfMonth(referenceDate);
 
-export function buildDailyProfit(trades: Trade[]) {
-  return march2026Days.map(({ date, day }) => {
+  return eachDayOfInterval({ start: monthStart, end: monthEnd }).map((date) => ({
+    date: format(date, "yyyy-MM-dd"),
+    day: format(date, "d"),
+    label: format(date, "MMM d"),
+  }));
+}
+
+export function buildDailyProfit(trades: Trade[], referenceDate = new Date()) {
+  return getMonthDays(referenceDate).map(({ date, day, label }) => {
     const profit = trades
       .filter((trade) => trade.date === date)
       .reduce((sum, trade) => sum + trade.profitAmount, 0);
 
     return {
       date,
-      day: `${day}`,
-      label: `Mar ${day}`,
+      day,
+      label,
       profit,
     };
   });
