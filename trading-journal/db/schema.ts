@@ -4,6 +4,7 @@ import {
   date,
   jsonb,
   numeric,
+  pgEnum,
   pgTable,
   primaryKey,
   text,
@@ -89,3 +90,54 @@ export const dailyOverviewTrades = pgTable(
 
 export type DailyOverviewRow = typeof dailyOverviews.$inferSelect;
 export type DailyOverviewInsert = typeof dailyOverviews.$inferInsert;
+
+export const positionSideEnum = pgEnum("position_side", ["long", "short"]);
+
+export const portfolios = pgTable(
+  "portfolios",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id").notNull(),
+    name: text("name").notNull().default("My L/S Portfolio"),
+    targetLongRatio: numeric("target_long_ratio").notNull().default("0.700"),
+    targetShortRatio: numeric("target_short_ratio").notNull().default("0.300"),
+    longCash: numeric("long_cash").notNull().default("2500.00"),
+    shortCash: numeric("short_cash").notNull().default("1400.00"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [unique("portfolios_user_id_unique").on(table.userId)],
+);
+
+export const positions = pgTable("positions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  portfolioId: uuid("portfolio_id")
+    .notNull()
+    .references(() => portfolios.id, { onDelete: "cascade" }),
+  side: positionSideEnum("side").notNull(),
+  symbol: text("symbol").notNull(),
+  quantity: numeric("quantity").notNull(),
+  avgEntryPrice: numeric("avg_entry_price").notNull(),
+  currentPrice: numeric("current_price").notNull(),
+  stopLossPrice: numeric("stop_loss_price"),
+  targetPrice: numeric("target_price"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const portfolioEvents = pgTable("portfolio_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  portfolioId: uuid("portfolio_id")
+    .notNull()
+    .references(() => portfolios.id, { onDelete: "cascade" }),
+  eventType: text("event_type").notNull(),
+  positionId: uuid("position_id").references(() => positions.id, { onDelete: "set null" }),
+  payload: jsonb("payload").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type PortfolioRow = typeof portfolios.$inferSelect;
+export type PositionRow = typeof positions.$inferSelect;
+export type PortfolioEventRow = typeof portfolioEvents.$inferSelect;

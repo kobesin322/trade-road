@@ -72,6 +72,11 @@ import { buildOverviewsByDate, overviewHasContent } from "@/lib/daily-overview-u
 const mainViews = ["Dashboard", "Journal", "Charts", "Calendar"] as const;
 const toolLinks = [
   {
+    href: "/tools/portfolio",
+    title: "L/S Portfolio",
+    description: "Long/short book editor",
+  },
+  {
     href: "/tools/correlation",
     title: "Correlation Matrix",
     description: "Pearson pair selection",
