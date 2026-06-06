@@ -47,6 +47,7 @@ import { buildTradesCsv, seedSampleTrades } from "@/app/actions/trades";
 import { updateDemoTradesPreference } from "@/app/actions/preferences";
 import { signOut } from "@/app/actions/auth";
 import { MarketChartsView } from "@/components/charts/market-charts-view";
+import { DailyOverviewPanel } from "@/components/journal/daily-overview-panel";
 import { JournalEntryForm } from "@/components/journal/journal-entry-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -62,6 +63,7 @@ import {
 import { createClient, hasSupabaseBrowserConfig } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { buildDailyProfit, getTradeStats, type Trade, type TradeOutcome } from "@/lib/trades";
+import type { DailyOverview } from "@/lib/daily-overview-types";
 
 const mainViews = ["Dashboard", "Journal", "Charts", "Calendar"] as const;
 const toolLinks = [
@@ -169,8 +171,11 @@ function ChartPlaceholder({ label = "Loading chart" }: { label?: string }) {
   );
 }
 
+type JournalSection = "trades" | "daily-overview";
+
 export type TradingDashboardProps = {
   personalTrades: Trade[];
+  personalDailyOverviews: DailyOverview[];
   demoTradesEnabled: boolean;
   canUsePersonalJournal: boolean;
   userId: string;
@@ -179,6 +184,7 @@ export type TradingDashboardProps = {
 
 export function TradingDashboard({
   personalTrades,
+  personalDailyOverviews,
   demoTradesEnabled: initialDemoTradesEnabled,
   canUsePersonalJournal,
   userId,
@@ -193,6 +199,7 @@ export function TradingDashboard({
   const [trades, setTrades] = useState<Trade[]>(displayTrades);
   const [activeView, setActiveView] = useState<MainView>("Dashboard");
   const [journalTab, setJournalTab] = useState<JournalTab>("List overview");
+  const [journalSection, setJournalSection] = useState<JournalSection>("trades");
   const [query, setQuery] = useState("");
   const [outcomeFilter, setOutcomeFilter] = useState<OutcomeFilter>("ALL");
   const [strategyFilter, setStrategyFilter] = useState<"ALL" | JournalStrategy>("ALL");
@@ -551,11 +558,16 @@ export function TradingDashboard({
             demoTradesEnabled={demoTradesEnabled}
             filteredTrades={filteredTrades}
             journalEditorMode={journalEditorMode}
+            journalSection={journalSection}
             journalTab={journalTab}
             outcomeFilter={outcomeFilter}
+            personalDailyOverviews={personalDailyOverviews}
+            personalTrades={personalTrades}
             query={query}
+            selectedCalendarDate={selectedCalendarDate}
             selectedTrade={selectedTrade}
             setJournalEditorMode={setJournalEditorMode}
+            setJournalSection={setJournalSection}
             setJournalTab={setJournalTab}
             setOutcomeFilter={setOutcomeFilter}
             setQuery={setQuery}
@@ -575,6 +587,7 @@ export function TradingDashboard({
               router.refresh();
             }}
             onSelectTrade={selectTrade}
+            onDailyOverviewSaved={() => router.refresh()}
           />
         )}
 
@@ -831,11 +844,16 @@ function JournalView({
   demoTradesEnabled,
   filteredTrades,
   journalEditorMode,
+  journalSection,
   journalTab,
   outcomeFilter,
+  personalDailyOverviews,
+  personalTrades,
   query,
+  selectedCalendarDate,
   selectedTrade,
   setJournalEditorMode,
+  setJournalSection,
   setJournalTab,
   setOutcomeFilter,
   setQuery,
@@ -847,17 +865,23 @@ function JournalView({
   onJournalDeleted,
   onJournalSaved,
   onSelectTrade,
+  onDailyOverviewSaved,
 }: {
   canUsePersonalJournal: boolean;
   chartsReady: boolean;
   demoTradesEnabled: boolean;
   filteredTrades: Trade[];
   journalEditorMode: "closed" | "create" | "edit";
+  journalSection: JournalSection;
   journalTab: JournalTab;
   outcomeFilter: OutcomeFilter;
+  personalDailyOverviews: DailyOverview[];
+  personalTrades: Trade[];
   query: string;
+  selectedCalendarDate: string;
   selectedTrade: Trade | null;
   setJournalEditorMode: (mode: "closed" | "create" | "edit") => void;
+  setJournalSection: (section: JournalSection) => void;
   setJournalTab: (tab: JournalTab) => void;
   setOutcomeFilter: (filter: OutcomeFilter) => void;
   setQuery: (query: string) => void;
@@ -875,9 +899,71 @@ function JournalView({
   onJournalDeleted: () => void;
   onJournalSaved: (trade: Trade) => void;
   onSelectTrade: (trade: Trade) => void;
+  onDailyOverviewSaved: () => void;
 }) {
+  if (journalSection === "daily-overview") {
+    return (
+      <section className="grid gap-4">
+        <div className="flex flex-wrap gap-2">
+          {(
+            [
+              { id: "trades" as const, label: "Trades" },
+              { id: "daily-overview" as const, label: "Daily Overview" },
+            ] as const
+          ).map((section) => (
+            <button
+              key={section.id}
+              type="button"
+              onClick={() => setJournalSection(section.id)}
+              className={cn(
+                "rounded-full border border-white/10 px-4 py-2 text-sm font-bold text-zinc-400 transition hover:bg-white/10 hover:text-white",
+                journalSection === section.id && "border-cyan-300/50 bg-cyan-300/15 text-cyan-100",
+              )}
+            >
+              {section.label}
+            </button>
+          ))}
+        </div>
+        <DailyOverviewPanel
+          canUsePersonalJournal={canUsePersonalJournal}
+          dailyOverviews={personalDailyOverviews}
+          demoTradesEnabled={demoTradesEnabled}
+          initialDate={selectedCalendarDate}
+          personalTrades={personalTrades}
+          onSaved={onDailyOverviewSaved}
+          onSelectTrade={(trade) => {
+            onSelectTrade(trade);
+            setJournalSection("trades");
+            setJournalEditorMode("closed");
+          }}
+        />
+      </section>
+    );
+  }
+
   return (
-    <section className="grid gap-6 xl:grid-cols-[1.45fr_0.75fr]">
+    <section className="grid gap-4">
+      <div className="flex flex-wrap gap-2">
+        {(
+          [
+            { id: "trades" as const, label: "Trades" },
+            { id: "daily-overview" as const, label: "Daily Overview" },
+          ] as const
+        ).map((section) => (
+          <button
+            key={section.id}
+            type="button"
+            onClick={() => setJournalSection(section.id)}
+            className={cn(
+              "rounded-full border border-white/10 px-4 py-2 text-sm font-bold text-zinc-400 transition hover:bg-white/10 hover:text-white",
+              journalSection === section.id && "border-cyan-300/50 bg-cyan-300/15 text-cyan-100",
+            )}
+          >
+            {section.label}
+          </button>
+        ))}
+      </div>
+      <div className="grid gap-6 xl:grid-cols-[1.45fr_0.75fr]">
       <Card className="overflow-hidden">
         <CardHeader>
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -1058,6 +1144,7 @@ function JournalView({
           onSaved={onJournalSaved}
         />
       )}
+      </div>
     </section>
   );
 }
