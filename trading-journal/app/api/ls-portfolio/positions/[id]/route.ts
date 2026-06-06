@@ -10,6 +10,7 @@ import {
 import {
   LSPortfolioServiceError,
   loadPortfolioForUser,
+  normalizeSnapshotDate,
   requirePortfolioUser,
 } from "@/lib/ls-portfolio-service";
 
@@ -20,13 +21,14 @@ export async function PATCH(request: Request, context: RouteContext) {
     const user = await requirePortfolioUser();
     const { id } = await context.params;
     const body = (await request.json()) as Record<string, unknown>;
-    const snapshot = await getPortfolioSnapshot(user.id);
+    const date = normalizeSnapshotDate(typeof body.date === "string" ? body.date : null);
+    const snapshot = await getPortfolioSnapshot(user.id, date);
     const existing = snapshot.positions.find((p) => p.id === id);
     if (!existing) {
       return NextResponse.json({ error: "Position not found." }, { status: 404 });
     }
 
-    const updated = await updatePosition(user.id, id, {
+    const updated = await updatePosition(user.id, date, id, {
       ...(body.quantity !== undefined ? { quantity: Number(body.quantity) } : {}),
       ...(body.avg_entry_price !== undefined
         ? { avg_entry_price: Number(body.avg_entry_price) }
@@ -47,20 +49,17 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
 
     const eventType =
-      body.current_price !== undefined && Object.keys(body).length === 1
+      body.current_price !== undefined && Object.keys(body).length <= 2
         ? "PRICE_UPDATE"
         : "MANUAL_EDIT";
 
     await logPortfolioEvent(snapshot.portfolio.id, {
       event_type: eventType,
       position_id: id,
-      payload: {
-        symbol: updated.symbol,
-        ...body,
-      },
+      payload: { symbol: updated.symbol, snapshot_date: date, ...body },
     });
 
-    return NextResponse.json(await loadPortfolioForUser(user.id));
+    return NextResponse.json(await loadPortfolioForUser(user.id, date));
   } catch (error) {
     if (error instanceof LSPortfolioServiceError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
@@ -69,24 +68,26 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 }
 
-export async function DELETE(_request: Request, context: RouteContext) {
+export async function DELETE(request: Request, context: RouteContext) {
   try {
     const user = await requirePortfolioUser();
     const { id } = await context.params;
-    const snapshot = await getPortfolioSnapshot(user.id);
+    const { searchParams } = new URL(request.url);
+    const date = normalizeSnapshotDate(searchParams.get("date"));
+    const snapshot = await getPortfolioSnapshot(user.id, date);
     const existing = snapshot.positions.find((p) => p.id === id);
     if (!existing) {
       return NextResponse.json({ error: "Position not found." }, { status: 404 });
     }
 
-    await deletePosition(user.id, id);
+    await deletePosition(user.id, date, id);
     await logPortfolioEvent(snapshot.portfolio.id, {
       event_type: "DELETE_POSITION",
       position_id: id,
-      payload: { symbol: existing.symbol, side: existing.side },
+      payload: { symbol: existing.symbol, side: existing.side, snapshot_date: date },
     });
 
-    return NextResponse.json(await loadPortfolioForUser(user.id));
+    return NextResponse.json(await loadPortfolioForUser(user.id, date));
   } catch (error) {
     if (error instanceof LSPortfolioServiceError) {
       return NextResponse.json({ error: error.message }, { status: error.status });

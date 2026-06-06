@@ -98,16 +98,17 @@ export const portfolios = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     userId: uuid("user_id").notNull(),
-    name: text("name").notNull().default("My L/S Portfolio"),
-    targetLongRatio: numeric("target_long_ratio").notNull().default("0.700"),
-    targetShortRatio: numeric("target_short_ratio").notNull().default("0.300"),
-    longCash: numeric("long_cash").notNull().default("2500.00"),
-    shortCash: numeric("short_cash").notNull().default("1400.00"),
+    snapshotDate: date("snapshot_date").notNull().defaultNow(),
+    name: text("name").notNull().default("Daily L/S Snapshot"),
+    targetLongRatio: numeric("target_long_ratio").notNull().default("0.600"),
+    targetShortRatio: numeric("target_short_ratio").notNull().default("0.400"),
+    longCash: numeric("long_cash").notNull().default("0"),
+    shortCash: numeric("short_cash").notNull().default("0"),
     notes: text("notes"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [unique("portfolios_user_id_unique").on(table.userId)],
+  (table) => [unique("portfolios_user_snapshot_unique").on(table.userId, table.snapshotDate)],
 );
 
 export const positions = pgTable("positions", {

@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
 
-import { tradeErrorResponse } from "@/lib/api/trade-route";
+import { copySnapshotFromPrevious } from "@/lib/ls-portfolio-db";
 import {
   LSPortfolioServiceError,
   normalizeSnapshotDate,
   requirePortfolioUser,
-  seedDemoPortfolio,
 } from "@/lib/ls-portfolio-service";
 
 export async function POST(request: Request) {
@@ -15,12 +14,13 @@ export async function POST(request: Request) {
     const date = normalizeSnapshotDate(
       typeof body.date === "string" ? body.date : new URL(request.url).searchParams.get("date"),
     );
-    const snapshot = await seedDemoPortfolio(user.id, date);
+    const snapshot = await copySnapshotFromPrevious(user.id, date);
     return NextResponse.json(snapshot);
   } catch (error) {
     if (error instanceof LSPortfolioServiceError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
     }
-    return tradeErrorResponse(error);
+    const message = error instanceof Error ? error.message : "Copy failed.";
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 }

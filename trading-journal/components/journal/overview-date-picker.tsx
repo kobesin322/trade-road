@@ -24,6 +24,7 @@ type OverviewDatePickerProps = {
   onSelectDate: (date: string) => void;
   overviewDates?: string[];
   tradeDates?: string[];
+  snapshotDates?: string[];
   className?: string;
 };
 
@@ -32,6 +33,7 @@ export function OverviewDatePicker({
   onSelectDate,
   overviewDates = [],
   tradeDates = [],
+  snapshotDates = [],
   className,
 }: OverviewDatePickerProps) {
   const [visibleMonth, setVisibleMonth] = useState(() => startOfMonth(parseISO(selectedDate)));
@@ -42,6 +44,7 @@ export function OverviewDatePicker({
 
   const overviewSet = useMemo(() => new Set(overviewDates), [overviewDates]);
   const tradeSet = useMemo(() => new Set(tradeDates), [tradeDates]);
+  const snapshotSet = useMemo(() => new Set(snapshotDates), [snapshotDates]);
 
   const monthDays = useMemo(
     () => eachDayOfInterval({ start: startOfMonth(visibleMonth), end: endOfMonth(visibleMonth) }),
@@ -117,6 +120,7 @@ export function OverviewDatePicker({
           const isSelected = dateKey === selectedDate;
           const hasOverview = overviewSet.has(dateKey);
           const hasTrades = tradeSet.has(dateKey);
+          const hasSnapshot = snapshotSet.has(dateKey);
 
           return (
             <button
@@ -137,6 +141,9 @@ export function OverviewDatePicker({
                 {hasOverview ? (
                   <span className="h-1.5 w-1.5 rounded-full bg-violet-400 shadow-[0_0_6px_rgba(167,139,250,0.8)]" />
                 ) : null}
+                {hasSnapshot ? (
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.8)]" />
+                ) : null}
                 {hasTrades ? (
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-400/90" />
                 ) : null}
@@ -150,6 +157,10 @@ export function OverviewDatePicker({
         <span className="inline-flex items-center gap-1.5">
           <span className="h-1.5 w-1.5 rounded-full bg-violet-400" />
           Overview saved
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+          Portfolio snapshot
         </span>
         <span className="inline-flex items-center gap-1.5">
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />

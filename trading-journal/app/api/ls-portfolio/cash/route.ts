@@ -9,6 +9,7 @@ import {
 import {
   LSPortfolioServiceError,
   loadPortfolioForUser,
+  normalizeSnapshotDate,
   requirePortfolioUser,
 } from "@/lib/ls-portfolio-service";
 
@@ -16,6 +17,7 @@ export async function POST(request: Request) {
   try {
     const user = await requirePortfolioUser();
     const body = (await request.json()) as Record<string, unknown>;
+    const date = normalizeSnapshotDate(typeof body.date === "string" ? body.date : null);
     const pool = body.pool === "short" ? "short" : "long";
     const amount = Number(body.amount);
     const reason = typeof body.reason === "string" ? body.reason : "";
@@ -24,7 +26,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Non-zero amount required." }, { status: 400 });
     }
 
-    const snapshot = await getPortfolioSnapshot(user.id);
+    const snapshot = await getPortfolioSnapshot(user.id, date);
     const long_cash =
       pool === "long" ? snapshot.portfolio.long_cash + amount : snapshot.portfolio.long_cash;
     const short_cash =
@@ -37,10 +39,10 @@ export async function POST(request: Request) {
     await updatePortfolio(user.id, snapshot.portfolio.id, { long_cash, short_cash });
     await logPortfolioEvent(snapshot.portfolio.id, {
       event_type: "CASH_ADJUST",
-      payload: { pool, amount, reason },
+      payload: { pool, amount, reason, snapshot_date: date },
     });
 
-    return NextResponse.json(await loadPortfolioForUser(user.id));
+    return NextResponse.json(await loadPortfolioForUser(user.id, date));
   } catch (error) {
     if (error instanceof LSPortfolioServiceError) {
       return NextResponse.json({ error: error.message }, { status: error.status });

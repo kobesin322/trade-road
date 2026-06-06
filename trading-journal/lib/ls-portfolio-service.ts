@@ -1,7 +1,8 @@
 import { getSessionUser, isAdminDemoUser } from "@/lib/auth";
 import {
-  clearPortfolioPositions,
-  getOrCreatePortfolio,
+  clearDailySnapshot,
+  copySnapshotFromPrevious,
+  getOrCreateDailySnapshot,
   getPortfolioSnapshot,
   insertPosition,
   logPortfolioEvent,
@@ -19,6 +20,13 @@ export class LSPortfolioServiceError extends Error {
   }
 }
 
+export function normalizeSnapshotDate(date?: string | null) {
+  if (date?.trim()) {
+    return date.trim().slice(0, 10);
+  }
+  return new Date().toISOString().slice(0, 10);
+}
+
 export async function requirePortfolioUser() {
   const user = await getSessionUser();
   if (!user) {
@@ -26,7 +34,7 @@ export async function requirePortfolioUser() {
   }
   if (isAdminDemoUser(user)) {
     throw new LSPortfolioServiceError(
-      "L/S Portfolio requires a Supabase account. Sign in with your real account.",
+      "Daily portfolio snapshots require a Supabase account. Sign in with your real account.",
       403,
     );
   }
@@ -36,20 +44,20 @@ export async function requirePortfolioUser() {
   return user;
 }
 
-export async function loadPortfolioForUser(userId: string) {
-  return getPortfolioSnapshot(userId);
+export async function loadPortfolioForUser(userId: string, date?: string) {
+  return getPortfolioSnapshot(userId, normalizeSnapshotDate(date));
 }
 
-export async function seedDemoPortfolio(userId: string) {
-  await clearPortfolioPositions(userId);
-  const portfolio = await getOrCreatePortfolio(userId);
+export async function seedDemoPortfolio(userId: string, date?: string) {
+  const snapshotDate = normalizeSnapshotDate(date);
+  await clearDailySnapshot(userId, snapshotDate);
+  const portfolio = await getOrCreateDailySnapshot(userId, snapshotDate);
 
   await updatePortfolio(userId, portfolio.id, {
     ...DEMO_LS_PORTFOLIO,
-    notes: "Seeded demo book — 6:4 long/short target with high-conviction longs and tactical shorts.",
+    notes: `Demo snapshot for ${snapshotDate} — 6:4 long/short book.`,
   });
 
-  const inserted = [];
   for (const seed of DEMO_LS_POSITIONS) {
     const position = await insertPosition(portfolio.id, {
       ...seed,
@@ -58,7 +66,6 @@ export async function seedDemoPortfolio(userId: string) {
       notes: null,
     });
     if (position) {
-      inserted.push(position);
       await logPortfolioEvent(portfolio.id, {
         event_type: "ADD_POSITION",
         position_id: position.id,
@@ -72,12 +79,13 @@ export async function seedDemoPortfolio(userId: string) {
     }
   }
 
-  const snapshot = await getPortfolioSnapshot(userId);
+  const snapshot = await getPortfolioSnapshot(userId, snapshotDate);
   const pools = computePools(snapshot.positions, snapshot.portfolio);
   await logPortfolioEvent(portfolio.id, {
     event_type: "MANUAL_EDIT",
     payload: {
       action: "SEED_DEMO",
+      snapshot_date: snapshotDate,
       long_pool: pools.long_pool,
       short_pool: pools.short_pool,
     },
@@ -85,3 +93,5 @@ export async function seedDemoPortfolio(userId: string) {
 
   return snapshot;
 }
+
+export { copySnapshotFromPrevious };

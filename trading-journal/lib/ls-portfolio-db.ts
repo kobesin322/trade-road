@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, lt } from "drizzle-orm";
 
 import { portfolioEvents, portfolios, positions, type PortfolioRow, type PositionRow } from "@/db/schema";
 import { getDb } from "@/lib/db";
@@ -12,10 +12,18 @@ function ts(value: Date | string) {
   return value instanceof Date ? value.toISOString() : String(value);
 }
 
+function formatDate(value: string | Date) {
+  if (value instanceof Date) {
+    return value.toISOString().slice(0, 10);
+  }
+  return String(value).slice(0, 10);
+}
+
 export function rowToPortfolio(row: PortfolioRow): Portfolio {
   return {
     id: row.id,
     user_id: row.userId,
+    snapshot_date: formatDate(row.snapshotDate),
     name: row.name,
     target_long_ratio: num(row.targetLongRatio),
     target_short_ratio: num(row.targetShortRatio),
@@ -44,37 +52,74 @@ export function rowToPosition(row: PositionRow): Position {
   };
 }
 
-export async function getOrCreatePortfolio(userId: string) {
+export async function listSnapshotDates(userId: string) {
   const db = getDb();
-  const [existing] = await db
-    .select()
+  const rows = await db
+    .select({ snapshotDate: portfolios.snapshotDate })
     .from(portfolios)
     .where(eq(portfolios.userId, userId))
+    .orderBy(desc(portfolios.snapshotDate));
+
+  return rows.map((row) => formatDate(row.snapshotDate));
+}
+
+async function getLatestSnapshotBefore(userId: string, date: string) {
+  const db = getDb();
+  const [row] = await db
+    .select()
+    .from(portfolios)
+    .where(and(eq(portfolios.userId, userId), lt(portfolios.snapshotDate, date)))
+    .orderBy(desc(portfolios.snapshotDate))
     .limit(1);
 
+  return row ? rowToPortfolio(row) : null;
+}
+
+export async function getDailySnapshot(userId: string, date: string) {
+  const db = getDb();
+  const normalized = date.slice(0, 10);
+  const [row] = await db
+    .select()
+    .from(portfolios)
+    .where(and(eq(portfolios.userId, userId), eq(portfolios.snapshotDate, normalized)))
+    .limit(1);
+
+  return row ? rowToPortfolio(row) : null;
+}
+
+export async function getOrCreateDailySnapshot(userId: string, date: string) {
+  const normalized = date.slice(0, 10);
+  const existing = await getDailySnapshot(userId, normalized);
   if (existing) {
-    return rowToPortfolio(existing);
+    return existing;
   }
 
+  const previous = await getLatestSnapshotBefore(userId, normalized);
+  const db = getDb();
   const [created] = await db
     .insert(portfolios)
     .values({
       userId,
-      targetLongRatio: "0.600",
-      targetShortRatio: "0.400",
-      longCash: "2500.00",
-      shortCash: "1400.00",
+      snapshotDate: normalized,
+      name: `Snapshot ${normalized}`,
+      targetLongRatio: String(previous?.target_long_ratio ?? 0.6),
+      targetShortRatio: String(previous?.target_short_ratio ?? 0.4),
+      longCash: "0",
+      shortCash: "0",
+      notes: previous
+        ? `Ratios inherited from ${previous.snapshot_date}. Add positions or copy from prior day.`
+        : null,
     })
     .returning();
 
   if (!created) {
-    throw new Error("Unable to create portfolio.");
+    throw new Error("Unable to create daily snapshot.");
   }
   return rowToPortfolio(created);
 }
 
-export async function getPortfolioSnapshot(userId: string) {
-  const portfolio = await getOrCreatePortfolio(userId);
+export async function getPortfolioSnapshot(userId: string, date: string) {
+  const portfolio = await getOrCreateDailySnapshot(userId, date);
   const db = getDb();
 
   const positionRows = await db
@@ -90,6 +135,8 @@ export async function getPortfolioSnapshot(userId: string) {
     .orderBy(desc(portfolioEvents.createdAt))
     .limit(20);
 
+  const snapshot_dates = await listSnapshotDates(userId);
+
   return {
     portfolio,
     positions: positionRows.map(rowToPosition),
@@ -101,6 +148,7 @@ export async function getPortfolioSnapshot(userId: string) {
       payload: row.payload ?? null,
       created_at: ts(row.createdAt),
     })) satisfies PortfolioEvent[],
+    snapshot_dates,
   };
 }
 
@@ -137,6 +185,14 @@ export async function updatePortfolio(
   return row ? rowToPortfolio(row) : null;
 }
 
+async function getPortfolioForUserDate(userId: string, date: string) {
+  const portfolio = await getDailySnapshot(userId, date.slice(0, 10));
+  if (!portfolio) {
+    throw new Error("Daily snapshot not found for this date.");
+  }
+  return portfolio;
+}
+
 export async function insertPosition(
   portfolioId: string,
   input: Omit<Position, "id" | "portfolio_id" | "created_at" | "updated_at">,
@@ -162,6 +218,7 @@ export async function insertPosition(
 
 export async function updatePosition(
   userId: string,
+  date: string,
   positionId: string,
   patch: Partial<{
     quantity: number;
@@ -173,8 +230,8 @@ export async function updatePosition(
     symbol: string;
   }>,
 ) {
+  const portfolio = await getPortfolioForUserDate(userId, date);
   const db = getDb();
-  const portfolio = await getOrCreatePortfolio(userId);
 
   const [row] = await db
     .update(positions)
@@ -199,9 +256,9 @@ export async function updatePosition(
   return row ? rowToPosition(row) : null;
 }
 
-export async function deletePosition(userId: string, positionId: string) {
+export async function deletePosition(userId: string, date: string, positionId: string) {
+  const portfolio = await getPortfolioForUserDate(userId, date);
   const db = getDb();
-  const portfolio = await getOrCreatePortfolio(userId);
   const deleted = await db
     .delete(positions)
     .where(and(eq(positions.id, positionId), eq(positions.portfolioId, portfolio.id)))
@@ -242,10 +299,67 @@ export async function logPortfolioEvent(
   } satisfies PortfolioEvent;
 }
 
-export async function clearPortfolioPositions(userId: string) {
-  const portfolio = await getOrCreatePortfolio(userId);
+export async function clearDailySnapshot(userId: string, date: string) {
+  const portfolio = await getOrCreateDailySnapshot(userId, date);
   const db = getDb();
   await db.delete(positions).where(eq(positions.portfolioId, portfolio.id));
   await db.delete(portfolioEvents).where(eq(portfolioEvents.portfolioId, portfolio.id));
   return portfolio;
+}
+
+export async function copySnapshotFromPrevious(userId: string, date: string) {
+  const normalized = date.slice(0, 10);
+  const previous = await getLatestSnapshotBefore(userId, normalized);
+  if (!previous) {
+    throw new Error("No prior snapshot to copy from.");
+  }
+
+  const target = await getOrCreateDailySnapshot(userId, normalized);
+  const db = getDb();
+
+  await db.delete(positions).where(eq(positions.portfolioId, target.id));
+  await db.delete(portfolioEvents).where(eq(portfolioEvents.portfolioId, target.id));
+
+  await updatePortfolio(userId, target.id, {
+    target_long_ratio: previous.target_long_ratio,
+    target_short_ratio: previous.target_short_ratio,
+    long_cash: previous.long_cash,
+    short_cash: previous.short_cash,
+    notes: `Copied from ${previous.snapshot_date}`,
+  });
+
+  const prevPositions = await db
+    .select()
+    .from(positions)
+    .where(eq(positions.portfolioId, previous.id));
+
+  for (const row of prevPositions) {
+    const position = rowToPosition(row);
+    await insertPosition(target.id, {
+      side: position.side,
+      symbol: position.symbol,
+      quantity: position.quantity,
+      avg_entry_price: position.avg_entry_price,
+      current_price: position.current_price,
+      stop_loss_price: position.stop_loss_price,
+      target_price: position.target_price,
+      notes: position.notes,
+    });
+  }
+
+  await logPortfolioEvent(target.id, {
+    event_type: "MANUAL_EDIT",
+    payload: { action: "COPY_FROM_PREVIOUS", source_date: previous.snapshot_date },
+  });
+
+  return getPortfolioSnapshot(userId, normalized);
+}
+
+/** @deprecated use getOrCreateDailySnapshot */
+export async function getOrCreatePortfolio(userId: string, date?: string) {
+  return getOrCreateDailySnapshot(userId, date ?? new Date().toISOString().slice(0, 10));
+}
+
+export async function clearPortfolioPositions(userId: string, date: string) {
+  return clearDailySnapshot(userId, date);
 }

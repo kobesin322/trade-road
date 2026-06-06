@@ -26,6 +26,10 @@ import {
   RebalanceModal,
   TakeProfitModal,
 } from "@/components/ls-portfolio/ls-portfolio-modals";
+import {
+  formatOverviewDayLabel,
+  OverviewDatePicker,
+} from "@/components/journal/overview-date-picker";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,16 +47,28 @@ import { cn } from "@/lib/utils";
 
 type SideFilter = "all" | PositionSide;
 
-async function fetchSnapshot() {
-  const res = await fetch("/api/ls-portfolio", { cache: "no-store" });
+type LSPortfolioDashboardProps = {
+  selectedDate: string;
+  onDateChange: (date: string) => void;
+  canUsePersonalJournal: boolean;
+  onSnapshotDatesChange?: (dates: string[]) => void;
+};
+
+async function fetchSnapshot(date: string) {
+  const res = await fetch(`/api/ls-portfolio?date=${encodeURIComponent(date)}`, { cache: "no-store" });
   const data = await res.json();
   if (!res.ok) {
-    throw new Error(data.error ?? "Unable to load portfolio.");
+    throw new Error(data.error ?? "Unable to load snapshot.");
   }
   return data as PortfolioSnapshot;
 }
 
-export function LSPortfolioDashboard() {
+export function LSPortfolioDashboard({
+  selectedDate,
+  onDateChange,
+  canUsePersonalJournal,
+  onSnapshotDatesChange,
+}: LSPortfolioDashboardProps) {
   const [snapshot, setSnapshot] = useState<PortfolioSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -80,13 +96,15 @@ export function LSPortfolioDashboard() {
     setLoading(true);
     setError(null);
     try {
-      setSnapshot(await fetchSnapshot());
+      const data = await fetchSnapshot(selectedDate);
+      setSnapshot(data);
+      onSnapshotDatesChange?.(data.snapshot_dates);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Load failed.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedDate, onSnapshotDatesChange]);
 
   useEffect(() => {
     void refresh();
@@ -124,6 +142,7 @@ export function LSPortfolioDashboard() {
         throw new Error(data.error ?? "Request failed.");
       }
       setSnapshot(data);
+      onSnapshotDatesChange?.(data.snapshot_dates);
       if (successMsg) {
         showToast(successMsg, "success");
       }
@@ -134,6 +153,22 @@ export function LSPortfolioDashboard() {
     } finally {
       setActionLoading(false);
     }
+  }
+
+  function withDate(body: Record<string, unknown> = {}) {
+    return JSON.stringify({ ...body, date: selectedDate });
+  }
+
+  async function updateTargetRatio(longRatio: number) {
+    await mutate(
+      "/api/ls-portfolio",
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: withDate({ target_long_ratio: longRatio }),
+      },
+      "Target ratio updated for this day.",
+    );
   }
 
   async function updatePositionField(
@@ -166,7 +201,7 @@ export function LSPortfolioDashboard() {
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ [field]: value }),
+          body: withDate({ [field]: value }),
         },
       );
     } catch {
@@ -182,7 +217,11 @@ export function LSPortfolioDashboard() {
     if (!window.confirm(`Delete ${position.symbol} from portfolio?`)) {
       return;
     }
-    await mutate(`/api/ls-portfolio/positions/${position.id}`, { method: "DELETE" }, "Position removed.");
+    await mutate(
+      `/api/ls-portfolio/positions/${position.id}?date=${encodeURIComponent(selectedDate)}`,
+      { method: "DELETE" },
+      "Position removed.",
+    );
   }
 
   if (loading && !snapshot) {
@@ -198,6 +237,9 @@ export function LSPortfolioDashboard() {
       <Card className="border-rose-400/30 bg-rose-500/10">
         <CardContent className="grid gap-3 pt-6">
           <p className="text-rose-100">{error}</p>
+          {!canUsePersonalJournal ? (
+            <p className="text-sm text-zinc-400">Sign in with Supabase to use daily portfolio snapshots.</p>
+          ) : null}
           <Button type="button" onClick={() => void refresh()} className="w-fit bg-white/10">
             Retry
           </Button>
@@ -222,27 +264,60 @@ export function LSPortfolioDashboard() {
     <div className="grid gap-6">
       <Toast message={toast?.message ?? null} tone={toast?.tone} />
 
-      {/* Header */}
-      <Card className="overflow-hidden border-emerald-400/20 bg-gradient-to-br from-emerald-500/10 via-transparent to-rose-500/10">
-        <CardHeader>
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Scale className="h-5 w-5 text-cyan-300" />
-                <CardTitle className="text-2xl">{snapshot.portfolio.name}</CardTitle>
-                <Badge tone="neutral">
-                  Target {formatPercent(snapshot.portfolio.target_long_ratio * 100, 0)} /{" "}
-                  {formatPercent(snapshot.portfolio.target_short_ratio * 100, 0)}
-                </Badge>
+      <div className="grid gap-6 xl:grid-cols-[minmax(280px,340px)_1fr]">
+        <OverviewDatePicker
+          selectedDate={selectedDate}
+          onSelectDate={onDateChange}
+          snapshotDates={snapshot.snapshot_dates}
+        />
+        <Card className="overflow-hidden border-amber-400/20 bg-gradient-to-br from-amber-500/10 via-transparent to-emerald-500/5">
+          <CardHeader>
+            <div className="flex flex-col gap-4">
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Scale className="h-5 w-5 text-amber-300" />
+                  <CardTitle className="text-xl">Daily L/S Snapshot</CardTitle>
+                  <Badge tone="neutral">{snapshot.positions.length} positions</Badge>
+                </div>
+                <p className="mt-2 text-2xl font-black text-white">{formatOverviewDayLabel(selectedDate)}</p>
+                <p className="mt-1 text-sm text-zinc-400">
+                  End-of-day book for review — target ratio varies by market regime.
+                </p>
               </div>
-              <p className="mt-1 text-sm text-zinc-400">
-                Updated {format(parseISO(snapshot.portfolio.updated_at), "MMM d, yyyy · h:mm a")}
-              </p>
+              <div className="grid gap-2 rounded-2xl border border-white/10 bg-black/25 p-4">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-semibold text-zinc-300">Target Long / Short</span>
+                  <span className="font-mono font-bold text-cyan-100">
+                    {formatPercent(snapshot.portfolio.target_long_ratio * 100, 0)} /{" "}
+                    {formatPercent(snapshot.portfolio.target_short_ratio * 100, 0)}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={40}
+                  max={80}
+                  step={5}
+                  value={Math.round(snapshot.portfolio.target_long_ratio * 100)}
+                  onChange={(e) => void updateTargetRatio(Number(e.target.value) / 100)}
+                  className="w-full accent-emerald-400"
+                  disabled={!canUsePersonalJournal}
+                />
+              </div>
             </div>
+          </CardHeader>
+        </Card>
+      </div>
+
+      <Card className="overflow-hidden border-emerald-400/20">
+        <CardHeader>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <p className="text-sm text-zinc-400">
+              Saved {format(parseISO(snapshot.portfolio.updated_at), "MMM d · h:mm a")}
+            </p>
             <div className="flex flex-wrap gap-2">
               <Button
                 type="button"
-                onClick={() => showToast("Coming soon — edit current price inline for now.", "info")}
+                onClick={() => showToast("Coming soon — edit current price inline.", "info")}
                 className="bg-white/5 text-zinc-200"
               >
                 <RefreshCw className="h-4 w-4" />
@@ -250,9 +325,19 @@ export function LSPortfolioDashboard() {
               </Button>
               <Button
                 type="button"
-                onClick={() => setRebalanceOpen(true)}
-                className="bg-cyan-300/15 text-cyan-100"
+                disabled={actionLoading}
+                onClick={() =>
+                  void mutate(
+                    "/api/ls-portfolio/copy-previous",
+                    { method: "POST", headers: { "Content-Type": "application/json" }, body: withDate() },
+                    "Copied from previous day.",
+                  )
+                }
+                className="bg-white/5 text-zinc-200"
               >
+                Copy prior day
+              </Button>
+              <Button type="button" onClick={() => setRebalanceOpen(true)} className="bg-cyan-300/15 text-cyan-100">
                 <ArrowDownUp className="h-4 w-4" />
                 Rebalance
               </Button>
@@ -367,7 +452,16 @@ export function LSPortfolioDashboard() {
           </CardHeader>
           <CardContent className="overflow-x-auto">
             {filtered.length === 0 ? (
-              <EmptyState onSeed={() => void mutate("/api/ls-portfolio/seed", { method: "POST" }, "Demo portfolio seeded.")} loading={actionLoading} />
+              <EmptyState
+                onSeed={() =>
+                  void mutate(
+                    "/api/ls-portfolio/seed",
+                    { method: "POST", headers: { "Content-Type": "application/json" }, body: withDate() },
+                    "Demo snapshot seeded.",
+                  )
+                }
+                loading={actionLoading}
+              />
             ) : (
               <table className="w-full min-w-[880px] text-left text-sm">
                 <thead>
@@ -563,11 +657,15 @@ export function LSPortfolioDashboard() {
         onClose={() => setTakeProfitPos(null)}
         loading={actionLoading}
         onConfirm={async (payload) => {
-          await mutate("/api/ls-portfolio/take-profit", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          }, `Took profit on ${takeProfitPos?.symbol}.`);
+          await mutate(
+            "/api/ls-portfolio/take-profit",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: withDate(payload),
+            },
+            `Took profit on ${takeProfitPos?.symbol}.`,
+          );
           setTakeProfitPos(null);
         }}
       />
@@ -577,11 +675,15 @@ export function LSPortfolioDashboard() {
         onClose={() => setAddOpen(false)}
         loading={actionLoading}
         onSubmit={async (payload) => {
-          await mutate("/api/ls-portfolio/positions", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          }, `${payload.symbol} added.`);
+          await mutate(
+            "/api/ls-portfolio/positions",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: withDate(payload),
+            },
+            `${payload.symbol} added.`,
+          );
           setAddOpen(false);
         }}
       />
@@ -592,7 +694,11 @@ export function LSPortfolioDashboard() {
         snapshot={snapshot}
         loading={actionLoading}
         onConfirm={async () => {
-          await mutate("/api/ls-portfolio/rebalance", { method: "POST" }, "Pools rebalanced.");
+          await mutate(
+            "/api/ls-portfolio/rebalance",
+            { method: "POST", headers: { "Content-Type": "application/json" }, body: withDate() },
+            "Pools rebalanced.",
+          );
           setRebalanceOpen(false);
         }}
       />
@@ -624,7 +730,7 @@ export function LSPortfolioDashboard() {
                 {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ pool: cashPool, amount: Number(cashAmount) }),
+                  body: withDate({ pool: cashPool, amount: Number(cashAmount) }),
                 },
                 "Cash updated.",
               ).then(() => setCashOpen(false))
@@ -709,8 +815,7 @@ function EmptyState({ onSeed, loading }: { onSeed: () => void; loading: boolean 
       <div>
         <p className="text-lg font-black text-white">No positions yet</p>
         <p className="mt-1 text-sm text-zinc-400">
-          Seed the demo book with TSLA, COIN, SCCO, CRCL, IREN longs and SNDK, EWY shorts — ~6:4
-          ratio.
+          Seed a demo book for this day — TSLA, COIN, SCCO, CRCL, IREN longs and SNDK, EWY shorts.
         </p>
       </div>
       <Button

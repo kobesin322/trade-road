@@ -4,14 +4,17 @@ import { tradeErrorResponse } from "@/lib/api/trade-route";
 import {
   LSPortfolioServiceError,
   loadPortfolioForUser,
+  normalizeSnapshotDate,
   requirePortfolioUser,
 } from "@/lib/ls-portfolio-service";
 import { updatePortfolio } from "@/lib/ls-portfolio-db";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const user = await requirePortfolioUser();
-    const snapshot = await loadPortfolioForUser(user.id);
+    const { searchParams } = new URL(request.url);
+    const date = normalizeSnapshotDate(searchParams.get("date"));
+    const snapshot = await loadPortfolioForUser(user.id, date);
     return NextResponse.json(snapshot);
   } catch (error) {
     if (error instanceof LSPortfolioServiceError) {
@@ -25,7 +28,10 @@ export async function PATCH(request: Request) {
   try {
     const user = await requirePortfolioUser();
     const body = (await request.json()) as Record<string, unknown>;
-    const snapshot = await loadPortfolioForUser(user.id);
+    const date = normalizeSnapshotDate(
+      typeof body.date === "string" ? body.date : new URL(request.url).searchParams.get("date"),
+    );
+    const snapshot = await loadPortfolioForUser(user.id, date);
     const updated = await updatePortfolio(user.id, snapshot.portfolio.id, {
       ...(typeof body.name === "string" ? { name: body.name } : {}),
       ...(typeof body.target_long_ratio === "number"
@@ -39,9 +45,9 @@ export async function PATCH(request: Request) {
       ...(body.notes !== undefined ? { notes: body.notes as string | null } : {}),
     });
     if (!updated) {
-      return NextResponse.json({ error: "Portfolio not found." }, { status: 404 });
+      return NextResponse.json({ error: "Snapshot not found." }, { status: 404 });
     }
-    return NextResponse.json(await loadPortfolioForUser(user.id));
+    return NextResponse.json(await loadPortfolioForUser(user.id, date));
   } catch (error) {
     if (error instanceof LSPortfolioServiceError) {
       return NextResponse.json({ error: error.message }, { status: error.status });

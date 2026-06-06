@@ -3,6 +3,7 @@ export type PositionSide = "long" | "short";
 export type Portfolio = {
   id: string;
   user_id: string;
+  snapshot_date: string;
   name: string;
   target_long_ratio: number;
   target_short_ratio: number;
@@ -62,6 +63,7 @@ export type PortfolioSnapshot = {
   portfolio: Portfolio;
   positions: Position[];
   events: PortfolioEvent[];
+  snapshot_dates: string[];
 };
 
 export type TakeProfitPreview = {

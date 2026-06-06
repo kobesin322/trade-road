@@ -9,6 +9,7 @@ import {
 import {
   LSPortfolioServiceError,
   loadPortfolioForUser,
+  normalizeSnapshotDate,
   requirePortfolioUser,
 } from "@/lib/ls-portfolio-service";
 import type { PositionSide } from "@/lib/ls-portfolio-types";
@@ -17,7 +18,8 @@ export async function POST(request: Request) {
   try {
     const user = await requirePortfolioUser();
     const body = (await request.json()) as Record<string, unknown>;
-    const snapshot = await getPortfolioSnapshot(user.id);
+    const date = normalizeSnapshotDate(typeof body.date === "string" ? body.date : null);
+    const snapshot = await getPortfolioSnapshot(user.id, date);
 
     const side = body.side as PositionSide;
     const symbol = String(body.symbol ?? "").trim().toUpperCase();
@@ -58,10 +60,11 @@ export async function POST(request: Request) {
         side: position.side,
         quantity: position.quantity,
         avg_entry_price: position.avg_entry_price,
+        snapshot_date: date,
       },
     });
 
-    return NextResponse.json(await loadPortfolioForUser(user.id), { status: 201 });
+    return NextResponse.json(await loadPortfolioForUser(user.id, date), { status: 201 });
   } catch (error) {
     if (error instanceof LSPortfolioServiceError) {
       return NextResponse.json({ error: error.message }, { status: error.status });

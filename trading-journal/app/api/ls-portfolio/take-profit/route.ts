@@ -12,6 +12,7 @@ import { calculateTakeProfitPreview } from "@/lib/ls-portfolio";
 import {
   LSPortfolioServiceError,
   loadPortfolioForUser,
+  normalizeSnapshotDate,
   requirePortfolioUser,
 } from "@/lib/ls-portfolio-service";
 
@@ -19,7 +20,8 @@ export async function POST(request: Request) {
   try {
     const user = await requirePortfolioUser();
     const body = (await request.json()) as Record<string, unknown>;
-    const snapshot = await getPortfolioSnapshot(user.id);
+    const date = normalizeSnapshotDate(typeof body.date === "string" ? body.date : null);
+    const snapshot = await getPortfolioSnapshot(user.id, date);
     const positionId = String(body.position_id ?? "");
     const position = snapshot.positions.find((p) => p.id === positionId);
     if (!position) {
@@ -38,9 +40,9 @@ export async function POST(request: Request) {
     }
 
     if (preview.remaining_qty <= 0) {
-      await deletePosition(user.id, position.id);
+      await deletePosition(user.id, date, position.id);
     } else {
-      await updatePosition(user.id, position.id, { quantity: preview.remaining_qty });
+      await updatePosition(user.id, date, position.id, { quantity: preview.remaining_qty });
     }
 
     await updatePortfolio(user.id, snapshot.portfolio.id, {
@@ -54,6 +56,7 @@ export async function POST(request: Request) {
       payload: {
         symbol: position.symbol,
         side: position.side,
+        snapshot_date: date,
         sell_qty: preview.sell_qty,
         sell_pct: preview.sell_pct,
         realized_pnl: preview.realized_pnl,
@@ -63,7 +66,7 @@ export async function POST(request: Request) {
       },
     });
 
-    return NextResponse.json(await loadPortfolioForUser(user.id));
+    return NextResponse.json(await loadPortfolioForUser(user.id, date));
   } catch (error) {
     if (error instanceof LSPortfolioServiceError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
@@ -76,11 +79,12 @@ export async function GET(request: Request) {
   try {
     const user = await requirePortfolioUser();
     const { searchParams } = new URL(request.url);
+    const date = normalizeSnapshotDate(searchParams.get("date"));
     const positionId = searchParams.get("position_id");
     const sellPct = Number(searchParams.get("sell_pct") ?? 30);
     const sellQtyParam = searchParams.get("sell_qty");
 
-    const snapshot = await getPortfolioSnapshot(user.id);
+    const snapshot = await getPortfolioSnapshot(user.id, date);
     const position = snapshot.positions.find((p) => p.id === positionId);
     if (!position) {
       return NextResponse.json({ error: "Position not found." }, { status: 404 });

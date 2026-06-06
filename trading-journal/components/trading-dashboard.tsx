@@ -20,6 +20,7 @@ import {
   Flame,
   Gauge,
   ListFilter,
+  Scale,
   Search,
   Sparkles,
   Swords,
@@ -48,6 +49,7 @@ import { buildTradesCsv, seedSampleTrades } from "@/app/actions/trades";
 import { updateDemoTradesPreference } from "@/app/actions/preferences";
 import { signOut } from "@/app/actions/auth";
 import { MarketChartsView } from "@/components/charts/market-charts-view";
+import { LSPortfolioDashboard } from "@/components/ls-portfolio/ls-portfolio-dashboard";
 import { DailyOverviewPanel } from "@/components/journal/daily-overview-panel";
 import { ScreenshotGallery } from "@/components/journal/screenshot-gallery";
 import { formatOverviewDayLabel } from "@/components/journal/overview-date-picker";
@@ -69,13 +71,8 @@ import { buildDailyProfit, getTradeStats, type Trade, type TradeOutcome } from "
 import type { DailyOverview } from "@/lib/daily-overview-types";
 import { buildOverviewsByDate, overviewHasContent } from "@/lib/daily-overview-utils";
 
-const mainViews = ["Dashboard", "Journal", "Charts", "Calendar"] as const;
+const mainViews = ["Dashboard", "Journal", "Portfolio", "Charts", "Calendar"] as const;
 const toolLinks = [
-  {
-    href: "/tools/portfolio",
-    title: "L/S Portfolio",
-    description: "Long/short book editor",
-  },
   {
     href: "/tools/correlation",
     title: "Correlation Matrix",
@@ -225,6 +222,7 @@ export function TradingDashboard({
   const [selectedCalendarDate, setSelectedCalendarDate] = useState(() =>
     format(new Date(), "yyyy-MM-dd"),
   );
+  const [portfolioSnapshotDates, setPortfolioSnapshotDates] = useState<string[]>([]);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -526,7 +524,7 @@ export function TradingDashboard({
           </div>
         </header>
 
-        <nav className="grid grid-cols-2 gap-2 rounded-[1.5rem] border border-white/10 bg-black/30 p-2 backdrop-blur md:grid-cols-4">
+        <nav className="grid grid-cols-2 gap-2 rounded-[1.5rem] border border-white/10 bg-black/30 p-2 backdrop-blur md:grid-cols-5">
           {mainViews.map((view) => (
             <button
               key={view}
@@ -627,6 +625,15 @@ export function TradingDashboard({
           />
         )}
 
+        {activeView === "Portfolio" && (
+          <LSPortfolioDashboard
+            selectedDate={selectedCalendarDate}
+            onDateChange={setSelectedCalendarDate}
+            canUsePersonalJournal={canUsePersonalJournal}
+            onSnapshotDatesChange={setPortfolioSnapshotDates}
+          />
+        )}
+
         {activeView === "Charts" && <MarketChartsView chartsReady={chartsReady} />}
 
         {activeView === "Calendar" && (
@@ -638,6 +645,7 @@ export function TradingDashboard({
             canUsePersonalJournal={canUsePersonalJournal}
             demoTradesEnabled={demoTradesEnabled}
             overviewsByDate={overviewsByDate}
+            portfolioSnapshotDates={portfolioSnapshotDates}
             selectedCalendarDate={selectedCalendarDate}
             selectedDayOverview={selectedDayOverview}
             selectedDayTrades={selectedDayTrades}
@@ -649,6 +657,7 @@ export function TradingDashboard({
               setJournalSection("daily-overview");
               setActiveView("Journal");
             }}
+            onOpenPortfolioSnapshot={() => setActiveView("Portfolio")}
             onSelectTrade={(trade) => {
               selectTrade(trade);
               setJournalSection("trades");
@@ -1373,6 +1382,7 @@ function CalendarView({
   canUsePersonalJournal,
   demoTradesEnabled,
   overviewsByDate,
+  portfolioSnapshotDates,
   selectedCalendarDate,
   selectedDayOverview,
   selectedDayTrades,
@@ -1381,6 +1391,7 @@ function CalendarView({
   tradeCount,
   tradesByDate,
   onOpenDailyOverview,
+  onOpenPortfolioSnapshot,
   onSelectTrade,
 }: {
   calendarDays: Date[];
@@ -1390,6 +1401,7 @@ function CalendarView({
   canUsePersonalJournal: boolean;
   demoTradesEnabled: boolean;
   overviewsByDate: Record<string, DailyOverview>;
+  portfolioSnapshotDates: string[];
   selectedCalendarDate: string;
   selectedDayOverview: DailyOverview | null;
   selectedDayTrades: Trade[];
@@ -1398,6 +1410,7 @@ function CalendarView({
   tradeCount: number;
   tradesByDate: Record<string, Trade[]>;
   onOpenDailyOverview: () => void;
+  onOpenPortfolioSnapshot: () => void;
   onSelectTrade: (trade: Trade) => void;
 }) {
   function shiftMonth(delta: number) {
@@ -1420,7 +1433,7 @@ function CalendarView({
             <div>
               <CardTitle>Calendar View</CardTitle>
               <p className="mt-1 text-sm text-zinc-400">
-                {calendarLabel} — trades and daily overviews. Violet dot = overview saved.
+                {calendarLabel} — trades, daily overviews, and portfolio snapshots.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -1482,6 +1495,7 @@ function CalendarView({
               const dayTrades = tradesByDate[dateKey] ?? [];
               const dayOverview = overviewsByDate[dateKey];
               const hasOverview = Boolean(dayOverview && overviewHasContent(dayOverview));
+              const hasPortfolioSnapshot = portfolioSnapshotDates.includes(dateKey);
               const isSelected = selectedCalendarDate === dateKey;
 
               return (
@@ -1496,6 +1510,7 @@ function CalendarView({
                       : "border-white/10 bg-white/[0.04] hover:border-cyan-300/40 hover:bg-cyan-300/10",
                     isToday(day) && !isSelected && "border-cyan-300/30",
                     hasOverview && !isSelected && "border-violet-400/25",
+                    hasPortfolioSnapshot && !isSelected && "border-amber-400/25",
                   )}
                 >
                   <div className="flex items-center justify-between gap-1">
@@ -1515,6 +1530,14 @@ function CalendarView({
                           title="Daily overview saved"
                         >
                           OV
+                        </span>
+                      ) : null}
+                      {hasPortfolioSnapshot ? (
+                        <span
+                          className="rounded-full bg-amber-400/20 px-1.5 py-0.5 text-[9px] font-black uppercase text-amber-200"
+                          title="Portfolio snapshot saved"
+                        >
+                          PS
                         </span>
                       ) : null}
                       {dayTrades.length > 0 && (
@@ -1567,6 +1590,12 @@ function CalendarView({
               Daily overview
             </span>
             <span className="inline-flex items-center gap-1.5">
+              <span className="rounded-full bg-amber-400/20 px-1.5 py-0.5 text-[9px] font-black text-amber-200">
+                PS
+              </span>
+              Portfolio snapshot
+            </span>
+            <span className="inline-flex items-center gap-1.5">
               <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold text-zinc-300">
                 #
               </span>
@@ -1576,7 +1605,43 @@ function CalendarView({
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card className="border-amber-300/25 bg-gradient-to-br from-amber-500/10 to-transparent">
+          <CardContent className="grid gap-3 pt-6">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.2em] text-amber-200">
+                  <Scale className="h-4 w-4" />
+                  Portfolio snapshot
+                </div>
+                <div className="mt-1 text-lg font-black text-white">
+                  {formatOverviewDayLabel(selectedCalendarDate)}
+                </div>
+              </div>
+              <Badge tone={portfolioSnapshotDates.includes(selectedCalendarDate) ? "blue" : "neutral"}>
+                {portfolioSnapshotDates.includes(selectedCalendarDate) ? "Saved" : "Empty"}
+              </Badge>
+            </div>
+            <p className="text-sm text-zinc-400">
+              {canUsePersonalJournal && !demoTradesEnabled
+                ? portfolioSnapshotDates.includes(selectedCalendarDate)
+                  ? "Review long/short book and target ratio for this day."
+                  : "No snapshot yet — open the editor to log positions and regime target."
+                : "Turn demo trades off to save daily portfolio snapshots."}
+            </p>
+            <Button
+              type="button"
+              disabled={!canUsePersonalJournal || demoTradesEnabled}
+              onClick={onOpenPortfolioSnapshot}
+              className="bg-amber-400/20 text-amber-100 hover:bg-amber-400/30 disabled:opacity-40"
+            >
+              {portfolioSnapshotDates.includes(selectedCalendarDate)
+                ? "Open portfolio snapshot"
+                : "Create portfolio snapshot"}
+            </Button>
+          </CardContent>
+        </Card>
+
         <Card className="border-violet-300/25 bg-gradient-to-br from-violet-500/10 to-transparent">
           <CardContent className="grid gap-3 pt-6">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">

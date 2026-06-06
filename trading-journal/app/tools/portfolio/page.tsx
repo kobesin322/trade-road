@@ -1,5 +1,5 @@
-import { LSPortfolioDashboard } from "@/components/ls-portfolio/ls-portfolio-dashboard";
+import { redirect } from "next/navigation";
 
 export default function LSPortfolioPage() {
-  return <LSPortfolioDashboard />;
+  redirect("/?view=Portfolio");
 }
