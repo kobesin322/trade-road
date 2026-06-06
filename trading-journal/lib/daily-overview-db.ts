@@ -12,6 +12,10 @@ function formatOverviewDate(value: string | Date) {
   return String(value).slice(0, 10);
 }
 
+function parseScreenshotArray(value: unknown) {
+  return Array.isArray(value) ? value : [];
+}
+
 export function rowToDailyOverview(
   row: DailyOverviewRow,
   linkedTradeIds: string[] = [],
@@ -22,6 +26,8 @@ export function rowToDailyOverview(
     tradePerformanceHtml: row.tradePerformanceHtml ?? null,
     preTradeListHtml: row.preTradeListHtml ?? null,
     marketAnalysisHtml: row.marketAnalysisHtml ?? null,
+    preTradeListScreenshots: parseScreenshotArray(row.preTradeListScreenshots),
+    marketAnalysisScreenshots: parseScreenshotArray(row.marketAnalysisScreenshots),
     linkedTradeIds,
     createdAt:
       row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
@@ -164,12 +170,15 @@ export async function upsertDailyOverview(
     tradePerformanceHtml?: string | null;
     preTradeListHtml?: string | null;
     marketAnalysisHtml?: string | null;
+    preTradeListScreenshots?: DailyOverview["preTradeListScreenshots"];
+    marketAnalysisScreenshots?: DailyOverview["marketAnalysisScreenshots"];
     linkedTradeIds?: string[];
   },
 ) {
   const date = input.date.slice(0, 10);
-  const linkedTradeIds = input.linkedTradeIds ?? [];
-  await assertTradesLinkable(userId, date, linkedTradeIds);
+  if (input.linkedTradeIds !== undefined) {
+    await assertTradesLinkable(userId, date, input.linkedTradeIds);
+  }
 
   const db = getDb();
   const [row] = await db
@@ -180,13 +189,25 @@ export async function upsertDailyOverview(
       tradePerformanceHtml: input.tradePerformanceHtml ?? null,
       preTradeListHtml: input.preTradeListHtml ?? null,
       marketAnalysisHtml: input.marketAnalysisHtml ?? null,
+      preTradeListScreenshots: input.preTradeListScreenshots ?? [],
+      marketAnalysisScreenshots: input.marketAnalysisScreenshots ?? [],
     })
     .onConflictDoUpdate({
       target: [dailyOverviews.userId, dailyOverviews.overviewDate],
       set: {
-        tradePerformanceHtml: input.tradePerformanceHtml ?? null,
-        preTradeListHtml: input.preTradeListHtml ?? null,
-        marketAnalysisHtml: input.marketAnalysisHtml ?? null,
+        ...(input.tradePerformanceHtml !== undefined
+          ? { tradePerformanceHtml: input.tradePerformanceHtml }
+          : {}),
+        ...(input.preTradeListHtml !== undefined ? { preTradeListHtml: input.preTradeListHtml } : {}),
+        ...(input.marketAnalysisHtml !== undefined
+          ? { marketAnalysisHtml: input.marketAnalysisHtml }
+          : {}),
+        ...(input.preTradeListScreenshots !== undefined
+          ? { preTradeListScreenshots: input.preTradeListScreenshots }
+          : {}),
+        ...(input.marketAnalysisScreenshots !== undefined
+          ? { marketAnalysisScreenshots: input.marketAnalysisScreenshots }
+          : {}),
         updatedAt: sql`now()`,
       },
     })
@@ -196,8 +217,36 @@ export async function upsertDailyOverview(
     throw new Error("Unable to save daily overview.");
   }
 
-  await replaceOverviewTradeLinks(row.id, linkedTradeIds);
+  if (input.linkedTradeIds !== undefined) {
+    await replaceOverviewTradeLinks(row.id, input.linkedTradeIds);
+  }
   return getDailyOverviewRecordByDate(userId, date);
+}
+
+export async function updateDailyOverviewScreenshots(
+  userId: string,
+  overviewId: string,
+  input: {
+    preTradeListScreenshots?: DailyOverview["preTradeListScreenshots"];
+    marketAnalysisScreenshots?: DailyOverview["marketAnalysisScreenshots"];
+  },
+) {
+  const db = getDb();
+  const [row] = await db
+    .update(dailyOverviews)
+    .set({
+      ...(input.preTradeListScreenshots !== undefined
+        ? { preTradeListScreenshots: input.preTradeListScreenshots }
+        : {}),
+      ...(input.marketAnalysisScreenshots !== undefined
+        ? { marketAnalysisScreenshots: input.marketAnalysisScreenshots }
+        : {}),
+      updatedAt: sql`now()`,
+    })
+    .where(and(eq(dailyOverviews.id, overviewId), eq(dailyOverviews.userId, userId)))
+    .returning();
+
+  return row ?? null;
 }
 
 export async function deleteDailyOverview(userId: string, id: string) {

@@ -57,6 +57,14 @@ export async function PATCH(request: Request, context: RouteContext) {
         body.marketAnalysisHtml !== undefined
           ? (body.marketAnalysisHtml as string | null)
           : existing.marketAnalysisHtml,
+      preTradeListScreenshots:
+        body.preTradeListScreenshots !== undefined
+          ? (body.preTradeListScreenshots as typeof existing.preTradeListScreenshots)
+          : existing.preTradeListScreenshots,
+      marketAnalysisScreenshots:
+        body.marketAnalysisScreenshots !== undefined
+          ? (body.marketAnalysisScreenshots as typeof existing.marketAnalysisScreenshots)
+          : existing.marketAnalysisScreenshots,
       linkedTradeIds:
         body.linkedTradeIds !== undefined
           ? (body.linkedTradeIds as string[])

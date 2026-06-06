@@ -5,6 +5,7 @@ import { ImagePlus, Loader2, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState, useTransition } from "react";
 
 import { deleteJournalEntry, saveJournalEntry } from "@/app/actions/journal";
+import { ScreenshotGallery } from "@/components/journal/screenshot-gallery";
 import { RichTextEditor } from "@/components/journal/rich-text-editor";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -306,34 +307,28 @@ export function JournalEntryForm({
             />
           </label>
           {(form.screenshots.length > 0 || pendingScreenshots.length > 0) && (
-            <div className="grid grid-cols-2 gap-2">
-              {form.screenshots.map((shot) => (
-                <div key={shot.url} className="relative overflow-hidden rounded-2xl border border-white/10">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={shot.url} alt={shot.name} className="h-28 w-full object-cover" />
-                  <button
-                    type="button"
-                    onClick={() => removeExistingScreenshot(shot)}
-                    className="absolute right-2 top-2 rounded-full bg-black/70 p-1 text-white"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              ))}
-              {pendingScreenshots.map((shot) => (
-                <div key={shot.id} className="relative overflow-hidden rounded-2xl border border-cyan-300/30">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={shot.previewUrl} alt={shot.name} className="h-28 w-full object-cover" />
-                  <button
-                    type="button"
-                    onClick={() => removePendingScreenshot(shot.id)}
-                    className="absolute right-2 top-2 rounded-full bg-black/70 p-1 text-white"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              ))}
-            </div>
+            <ScreenshotGallery
+              items={[
+                ...form.screenshots.map((shot) => ({
+                  key: shot.url,
+                  url: shot.url,
+                  name: shot.name,
+                })),
+                ...pendingScreenshots.map((shot) => ({
+                  key: shot.id,
+                  url: shot.previewUrl,
+                  name: shot.name,
+                })),
+              ]}
+              onRemove={(key) => {
+                const existing = form.screenshots.find((shot) => shot.url === key);
+                if (existing) {
+                  removeExistingScreenshot(existing);
+                  return;
+                }
+                removePendingScreenshot(key);
+              }}
+            />
           )}
         </div>
 

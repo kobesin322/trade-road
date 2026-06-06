@@ -13,6 +13,7 @@ import {
 } from "date-fns";
 import {
   ArrowUpRight,
+  BookOpen,
   CalendarDays,
   ChevronDown,
   Crosshair,
@@ -48,6 +49,8 @@ import { updateDemoTradesPreference } from "@/app/actions/preferences";
 import { signOut } from "@/app/actions/auth";
 import { MarketChartsView } from "@/components/charts/market-charts-view";
 import { DailyOverviewPanel } from "@/components/journal/daily-overview-panel";
+import { ScreenshotGallery } from "@/components/journal/screenshot-gallery";
+import { formatOverviewDayLabel } from "@/components/journal/overview-date-picker";
 import { JournalEntryForm } from "@/components/journal/journal-entry-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -64,6 +67,7 @@ import { createClient, hasSupabaseBrowserConfig } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { buildDailyProfit, getTradeStats, type Trade, type TradeOutcome } from "@/lib/trades";
 import type { DailyOverview } from "@/lib/daily-overview-types";
+import { buildOverviewsByDate, overviewHasContent } from "@/lib/daily-overview-utils";
 
 const mainViews = ["Dashboard", "Journal", "Charts", "Calendar"] as const;
 const toolLinks = [
@@ -180,6 +184,8 @@ export type TradingDashboardProps = {
   canUsePersonalJournal: boolean;
   userId: string;
   userEmail: string;
+  initialView?: string;
+  initialTradeId?: string;
 };
 
 export function TradingDashboard({
@@ -189,6 +195,8 @@ export function TradingDashboard({
   canUsePersonalJournal,
   userId,
   userEmail,
+  initialView,
+  initialTradeId,
 }: TradingDashboardProps) {
   const router = useRouter();
   const [demoTradesEnabled, setDemoTradesEnabled] = useState(initialDemoTradesEnabled);
@@ -234,6 +242,23 @@ export function TradingDashboard({
   useEffect(() => {
     setChartsReady(true);
   }, []);
+
+  useEffect(() => {
+    if (initialView && mainViews.includes(initialView as MainView)) {
+      setActiveView(initialView as MainView);
+    }
+    if (!initialTradeId) {
+      return;
+    }
+    const trade = displayTrades.find((item) => item.id === initialTradeId);
+    if (!trade) {
+      return;
+    }
+    setActiveView("Journal");
+    setJournalSection("trades");
+    setJournalEditorMode("closed");
+    setSelectedTrade(trade);
+  }, [displayTrades, initialTradeId, initialView]);
 
   useEffect(() => {
     if (demoTradesEnabled || !canUsePersonalJournal || !hasSupabaseBrowserConfig()) {
@@ -301,6 +326,11 @@ export function TradingDashboard({
   );
   const calendarOffset = getDay(calendarMonth);
   const selectedDayTrades = tradesByDate[selectedCalendarDate] ?? [];
+  const overviewsByDate = useMemo(
+    () => buildOverviewsByDate(personalDailyOverviews),
+    [personalDailyOverviews],
+  );
+  const selectedDayOverview = overviewsByDate[selectedCalendarDate] ?? null;
   const maxDailyAbs = Math.max(
     1,
     ...dailyProfit.map((day) => Math.abs(day.profit)),
@@ -569,6 +599,7 @@ export function TradingDashboard({
             setJournalEditorMode={setJournalEditorMode}
             setJournalSection={setJournalSection}
             setJournalTab={setJournalTab}
+            setSelectedCalendarDate={setSelectedCalendarDate}
             setOutcomeFilter={setOutcomeFilter}
             setQuery={setQuery}
             setStrategyFilter={setStrategyFilter}
@@ -599,14 +630,23 @@ export function TradingDashboard({
             calendarLabel={calendarLabel}
             calendarMonth={calendarMonth}
             calendarOffset={calendarOffset}
+            canUsePersonalJournal={canUsePersonalJournal}
+            demoTradesEnabled={demoTradesEnabled}
+            overviewsByDate={overviewsByDate}
             selectedCalendarDate={selectedCalendarDate}
+            selectedDayOverview={selectedDayOverview}
             selectedDayTrades={selectedDayTrades}
             setCalendarMonth={setCalendarMonth}
             setSelectedCalendarDate={setSelectedCalendarDate}
             tradeCount={trades.length}
             tradesByDate={tradesByDate}
+            onOpenDailyOverview={() => {
+              setJournalSection("daily-overview");
+              setActiveView("Journal");
+            }}
             onSelectTrade={(trade) => {
               selectTrade(trade);
+              setJournalSection("trades");
               setActiveView("Journal");
             }}
           />
@@ -855,6 +895,7 @@ function JournalView({
   setJournalEditorMode,
   setJournalSection,
   setJournalTab,
+  setSelectedCalendarDate,
   setOutcomeFilter,
   setQuery,
   setStrategyFilter,
@@ -883,6 +924,7 @@ function JournalView({
   setJournalEditorMode: (mode: "closed" | "create" | "edit") => void;
   setJournalSection: (section: JournalSection) => void;
   setJournalTab: (tab: JournalTab) => void;
+  setSelectedCalendarDate: (date: string) => void;
   setOutcomeFilter: (filter: OutcomeFilter) => void;
   setQuery: (query: string) => void;
   setStrategyFilter: (filter: "ALL" | JournalStrategy) => void;
@@ -930,12 +972,8 @@ function JournalView({
           demoTradesEnabled={demoTradesEnabled}
           initialDate={selectedCalendarDate}
           personalTrades={personalTrades}
+          onDateChange={setSelectedCalendarDate}
           onSaved={onDailyOverviewSaved}
-          onSelectTrade={(trade) => {
-            onSelectTrade(trade);
-            setJournalSection("trades");
-            setJournalEditorMode("closed");
-          }}
         />
       </section>
     );
@@ -1232,20 +1270,15 @@ function TradeDetail({
         {(trade.screenshots?.length ?? 0) > 0 ? (
           <div className="mt-4 grid gap-2">
             <div className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">Screenshots</div>
-            <div className="grid grid-cols-2 gap-2">
-              {trade.screenshots?.map((shot) => (
-                <a
-                  key={shot.url}
-                  href={shot.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="overflow-hidden rounded-2xl border border-white/10"
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={shot.url} alt={shot.name} className="h-28 w-full object-cover" />
-                </a>
-              ))}
-            </div>
+            <ScreenshotGallery
+              items={
+                trade.screenshots?.map((shot) => ({
+                  key: shot.url,
+                  url: shot.url,
+                  name: shot.name,
+                })) ?? []
+              }
+            />
           </div>
         ) : null}
 
@@ -1332,24 +1365,34 @@ function CalendarView({
   calendarLabel,
   calendarMonth,
   calendarOffset,
+  canUsePersonalJournal,
+  demoTradesEnabled,
+  overviewsByDate,
   selectedCalendarDate,
+  selectedDayOverview,
   selectedDayTrades,
   setCalendarMonth,
   setSelectedCalendarDate,
   tradeCount,
   tradesByDate,
+  onOpenDailyOverview,
   onSelectTrade,
 }: {
   calendarDays: Date[];
   calendarLabel: string;
   calendarMonth: Date;
   calendarOffset: number;
+  canUsePersonalJournal: boolean;
+  demoTradesEnabled: boolean;
+  overviewsByDate: Record<string, DailyOverview>;
   selectedCalendarDate: string;
+  selectedDayOverview: DailyOverview | null;
   selectedDayTrades: Trade[];
   setCalendarMonth: (month: Date) => void;
   setSelectedCalendarDate: (date: string) => void;
   tradeCount: number;
   tradesByDate: Record<string, Trade[]>;
+  onOpenDailyOverview: () => void;
   onSelectTrade: (trade: Trade) => void;
 }) {
   function shiftMonth(delta: number) {
@@ -1372,7 +1415,7 @@ function CalendarView({
             <div>
               <CardTitle>Calendar View</CardTitle>
               <p className="mt-1 text-sm text-zinc-400">
-                {calendarLabel} daily trades with return badges. Click a day to select it.
+                {calendarLabel} — trades and daily overviews. Violet dot = overview saved.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -1432,6 +1475,8 @@ function CalendarView({
             {calendarDays.map((day) => {
               const dateKey = format(day, "yyyy-MM-dd");
               const dayTrades = tradesByDate[dateKey] ?? [];
+              const dayOverview = overviewsByDate[dateKey];
+              const hasOverview = Boolean(dayOverview && overviewHasContent(dayOverview));
               const isSelected = selectedCalendarDate === dateKey;
 
               return (
@@ -1445,9 +1490,10 @@ function CalendarView({
                       ? "border-cyan-300/70 bg-cyan-300/15 shadow-[0_0_24px_rgba(34,211,238,0.18)]"
                       : "border-white/10 bg-white/[0.04] hover:border-cyan-300/40 hover:bg-cyan-300/10",
                     isToday(day) && !isSelected && "border-cyan-300/30",
+                    hasOverview && !isSelected && "border-violet-400/25",
                   )}
                 >
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-1">
                     <span
                       className={cn(
                         "font-black",
@@ -1457,11 +1503,21 @@ function CalendarView({
                     >
                       {format(day, "d")}
                     </span>
-                    {dayTrades.length > 0 && (
-                      <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold text-zinc-300">
-                        {dayTrades.length}
-                      </span>
-                    )}
+                    <div className="flex items-center gap-1">
+                      {hasOverview ? (
+                        <span
+                          className="rounded-full bg-violet-400/20 px-1.5 py-0.5 text-[9px] font-black uppercase text-violet-200"
+                          title="Daily overview saved"
+                        >
+                          OV
+                        </span>
+                      ) : null}
+                      {dayTrades.length > 0 && (
+                        <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold text-zinc-300">
+                          {dayTrades.length}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="mt-2 grid gap-1.5">
                     {dayTrades.map((trade) => (
@@ -1498,45 +1554,126 @@ function CalendarView({
               );
             })}
           </div>
+          <div className="mt-4 flex flex-wrap gap-4 border-t border-white/10 pt-4 text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-500">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="rounded-full bg-violet-400/20 px-1.5 py-0.5 text-[9px] font-black text-violet-200">
+                OV
+              </span>
+              Daily overview
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold text-zinc-300">
+                #
+              </span>
+              Trade count
+            </span>
+          </div>
         </CardContent>
       </Card>
 
-      <Card className="border-cyan-300/20 bg-cyan-300/10">
-        <CardContent className="grid gap-3">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <div className="text-xs font-black uppercase tracking-[0.2em] text-cyan-100">
-                Selected day
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card className="border-violet-300/25 bg-gradient-to-br from-violet-500/10 to-transparent">
+          <CardContent className="grid gap-3 pt-6">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.2em] text-violet-200">
+                  <BookOpen className="h-4 w-4" />
+                  Daily overview
+                </div>
+                <div className="mt-1 text-lg font-black text-white">
+                  {formatOverviewDayLabel(selectedCalendarDate)}
+                </div>
               </div>
-              <div className="mt-1 text-2xl font-black text-white">
-                {format(parseISO(selectedCalendarDate), "EEEE, MMMM d, yyyy")}
+              <Badge tone={selectedDayOverview ? "blue" : "neutral"}>
+                {selectedDayOverview ? "Saved" : "Not written"}
+              </Badge>
+            </div>
+
+            {selectedDayOverview && overviewHasContent(selectedDayOverview) ? (
+              <div className="grid gap-2 rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-zinc-300">
+                {selectedDayOverview.tradePerformanceHtml ? (
+                  <p>
+                    <span className="font-bold text-violet-200">Performance · </span>
+                    Preview available
+                  </p>
+                ) : null}
+                {selectedDayOverview.preTradeListHtml ? (
+                  <p>
+                    <span className="font-bold text-violet-200">Pre-trade · </span>
+                    {selectedDayOverview.preTradeListScreenshots.length} screenshot
+                    {selectedDayOverview.preTradeListScreenshots.length === 1 ? "" : "s"}
+                  </p>
+                ) : null}
+                {selectedDayOverview.marketAnalysisHtml ? (
+                  <p>
+                    <span className="font-bold text-violet-200">Market · </span>
+                    {selectedDayOverview.marketAnalysisScreenshots.length} screenshot
+                    {selectedDayOverview.marketAnalysisScreenshots.length === 1 ? "" : "s"}
+                  </p>
+                ) : null}
+                {selectedDayOverview.linkedTradeIds.length > 0 ? (
+                  <p className="text-zinc-400">
+                    {selectedDayOverview.linkedTradeIds.length} linked trade
+                    {selectedDayOverview.linkedTradeIds.length === 1 ? "" : "s"}
+                  </p>
+                ) : null}
               </div>
+            ) : (
+              <p className="text-sm text-zinc-400">
+                {canUsePersonalJournal && !demoTradesEnabled
+                  ? "No overview for this day yet. Open the editor to capture your plan and recap."
+                  : "Turn demo trades off to write daily overviews."}
+              </p>
+            )}
+
+            <Button
+              type="button"
+              disabled={!canUsePersonalJournal || demoTradesEnabled}
+              onClick={onOpenDailyOverview}
+              className="bg-violet-400/20 text-violet-100 hover:bg-violet-400/30 disabled:opacity-40"
+            >
+              {selectedDayOverview ? "Open daily overview" : "Write daily overview"}
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="border-cyan-300/20 bg-cyan-300/10">
+          <CardContent className="grid gap-3 pt-6">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="text-xs font-black uppercase tracking-[0.2em] text-cyan-100">
+                  Trades
+                </div>
+                <div className="mt-1 text-lg font-black text-white">
+                  {formatOverviewDayLabel(selectedCalendarDate)}
+                </div>
+              </div>
+              <Badge tone={selectedDayTrades.length ? "blue" : "neutral"}>
+                {selectedDayTrades.length} trade{selectedDayTrades.length === 1 ? "" : "s"}
+              </Badge>
             </div>
-            <Badge tone={selectedDayTrades.length ? "blue" : "neutral"}>
-              {selectedDayTrades.length} trade{selectedDayTrades.length === 1 ? "" : "s"}
-            </Badge>
-          </div>
-          {selectedDayTrades.length ? (
-            <div className="grid gap-2 sm:grid-cols-2">
-              {selectedDayTrades.map((trade) => (
-                <button
-                  key={trade.id}
-                  type="button"
-                  onClick={() => onSelectTrade(trade)}
-                  className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-left transition hover:border-cyan-300/40"
-                >
-                  <div className="font-black text-white">{trade.pair}</div>
-                  <div className="mt-1 text-sm text-zinc-400">
-                    {trade.strategy} · {trade.outcome} · {formatPercent(trade.profitPercent)}
-                  </div>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-zinc-300">No trades logged for this day.</p>
-          )}
-        </CardContent>
-      </Card>
+            {selectedDayTrades.length ? (
+              <div className="grid gap-2">
+                {selectedDayTrades.map((trade) => (
+                  <button
+                    key={trade.id}
+                    type="button"
+                    onClick={() => onSelectTrade(trade)}
+                    className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-left transition hover:border-cyan-300/40"
+                  >
+                    <div className="font-black text-white">{trade.pair}</div>
+                    <div className="mt-1 text-sm text-zinc-400">
+                      {trade.strategy} · {trade.outcome} · {formatPercent(trade.profitPercent)}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-zinc-300">No trades logged for this day.</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       <Card className="border-yellow-300/20 bg-yellow-300/10">
         <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

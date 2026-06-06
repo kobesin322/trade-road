@@ -4,6 +4,8 @@ export type DailyOverview = {
   tradePerformanceHtml: string | null;
   preTradeListHtml: string | null;
   marketAnalysisHtml: string | null;
+  preTradeListScreenshots: import("@/lib/journal-constants").TradeScreenshot[];
+  marketAnalysisScreenshots: import("@/lib/journal-constants").TradeScreenshot[];
   linkedTradeIds: string[];
   createdAt: string;
   updatedAt: string;
@@ -14,7 +16,14 @@ export type DailyOverviewInput = {
   tradePerformanceHtml?: string | null;
   preTradeListHtml?: string | null;
   marketAnalysisHtml?: string | null;
+  preTradeListScreenshots?: import("@/lib/journal-constants").TradeScreenshot[];
+  marketAnalysisScreenshots?: import("@/lib/journal-constants").TradeScreenshot[];
   linkedTradeIds?: string[];
+};
+
+export type DailyOverviewScreenshotUploads = {
+  preTradeList?: import("@/lib/journal-constants").JournalScreenshotUpload[];
+  marketAnalysis?: import("@/lib/journal-constants").JournalScreenshotUpload[];
 };
 
 export type DailyOverviewRecord = DailyOverview & {

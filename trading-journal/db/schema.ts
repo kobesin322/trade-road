@@ -60,6 +60,14 @@ export const dailyOverviews = pgTable(
     tradePerformanceHtml: text("trade_performance_html"),
     preTradeListHtml: text("pre_trade_list_html"),
     marketAnalysisHtml: text("market_analysis_html"),
+    preTradeListScreenshots: jsonb("pre_trade_list_screenshots")
+      .$type<TradeScreenshot[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    marketAnalysisScreenshots: jsonb("market_analysis_screenshots")
+      .$type<TradeScreenshot[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

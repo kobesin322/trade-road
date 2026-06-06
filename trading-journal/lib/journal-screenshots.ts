@@ -53,3 +53,43 @@ export async function uploadJournalScreenshots(
 
   return saved;
 }
+
+export type DailyOverviewScreenshotSection = "pre-trade-list" | "market-analysis";
+
+export async function uploadDailyOverviewScreenshots(
+  userId: string,
+  overviewId: string,
+  section: DailyOverviewScreenshotSection,
+  uploads: Array<{ name: string; dataUrl: string }>,
+  keepExisting: TradeScreenshot[] = [],
+): Promise<TradeScreenshot[]> {
+  if (!uploads.length) {
+    return keepExisting;
+  }
+
+  const supabase = await createClient();
+  const saved: TradeScreenshot[] = [...keepExisting];
+
+  for (const [index, upload] of uploads.entries()) {
+    const { buffer, contentType } = dataUrlToBuffer(upload.dataUrl);
+    const filename = `${Date.now()}-${index}-${sanitizeFilename(upload.name)}`;
+    const path = `${userId}/daily-overview/${overviewId}/${section}/${filename}`;
+
+    const { error } = await supabase.storage.from("trade-screenshots").upload(path, buffer, {
+      contentType,
+      upsert: false,
+    });
+
+    if (error) {
+      throw new Error(`Screenshot upload failed: ${error.message}`);
+    }
+
+    const { data } = supabase.storage.from("trade-screenshots").getPublicUrl(path);
+    saved.push({
+      name: upload.name,
+      url: data.publicUrl,
+    });
+  }
+
+  return saved;
+}

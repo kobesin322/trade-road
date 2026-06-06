@@ -8,11 +8,19 @@ import { getDemoTradesEnabled } from "@/lib/user-preferences";
 
 export const dynamic = "force-dynamic";
 
-export default async function Home() {
+type HomeProps = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function Home({ searchParams }: HomeProps) {
   const user = await getSessionUser();
   if (!user) {
     redirect("/login");
   }
+
+  const params = await searchParams;
+  const initialTradeId = typeof params.tradeId === "string" ? params.tradeId : undefined;
+  const initialView = typeof params.view === "string" ? params.view : undefined;
 
   const demoTradesEnabled = await getDemoTradesEnabled(user.id);
   const canUsePersonalJournal = Boolean(process.env.DATABASE_URL) && !isAdminDemoUser(user);
@@ -25,6 +33,8 @@ export default async function Home() {
     <TradingDashboard
       canUsePersonalJournal={canUsePersonalJournal}
       demoTradesEnabled={demoTradesEnabled}
+      initialTradeId={initialTradeId}
+      initialView={initialView}
       personalDailyOverviews={personalDailyOverviews}
       personalTrades={personalTrades}
       userEmail={user.email ?? ""}
