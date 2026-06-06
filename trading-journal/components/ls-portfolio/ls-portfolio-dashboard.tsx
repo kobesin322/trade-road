@@ -4,6 +4,7 @@ import { format, parseISO } from "date-fns";
 import {
   ArrowDownUp,
   Loader2,
+  Minus,
   Plus,
   RefreshCw,
   Scale,
@@ -14,11 +15,17 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  Bar,
+  BarChart,
+  CartesianGrid,
   Cell,
+  Legend,
   Pie,
   PieChart,
   ResponsiveContainer,
   Tooltip,
+  XAxis,
+  YAxis,
 } from "recharts";
 
 import {
@@ -260,6 +267,32 @@ export function LSPortfolioDashboard({
     { name: "Short Cash", value: snapshot.portfolio.short_cash, fill: "#fda4af" },
   ].filter((d) => d.value > 0);
 
+  const ratioComparisonData = [
+    {
+      side: "Long",
+      target: snapshot.portfolio.target_long_ratio * 100,
+      actual: pools.current_long_pct * 100,
+    },
+    {
+      side: "Short",
+      target: snapshot.portfolio.target_short_ratio * 100,
+      actual: (1 - pools.current_long_pct) * 100,
+    },
+  ];
+
+  const poolComparisonData = [
+    {
+      side: "Long",
+      target: pools.total_pool * snapshot.portfolio.target_long_ratio,
+      actual: pools.long_pool,
+    },
+    {
+      side: "Short",
+      target: pools.total_pool * snapshot.portfolio.target_short_ratio,
+      actual: pools.short_pool,
+    },
+  ];
+
   return (
     <div className="grid gap-6">
       <Toast message={toast?.message ?? null} tone={toast?.tone} />
@@ -284,25 +317,11 @@ export function LSPortfolioDashboard({
                   End-of-day book for review — target ratio varies by market regime.
                 </p>
               </div>
-              <div className="grid gap-2 rounded-2xl border border-white/10 bg-black/25 p-4">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="font-semibold text-zinc-300">Target Long / Short</span>
-                  <span className="font-mono font-bold text-cyan-100">
-                    {formatPercent(snapshot.portfolio.target_long_ratio * 100, 0)} /{" "}
-                    {formatPercent(snapshot.portfolio.target_short_ratio * 100, 0)}
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  min={40}
-                  max={80}
-                  step={5}
-                  value={Math.round(snapshot.portfolio.target_long_ratio * 100)}
-                  onChange={(e) => void updateTargetRatio(Number(e.target.value) / 100)}
-                  className="w-full accent-emerald-400"
-                  disabled={!canUsePersonalJournal}
-                />
-              </div>
+              <TargetRatioEditor
+                longRatio={snapshot.portfolio.target_long_ratio}
+                disabled={!canUsePersonalJournal || actionLoading}
+                onChange={(longRatio) => void updateTargetRatio(longRatio)}
+              />
             </div>
           </CardHeader>
         </Card>
@@ -606,6 +625,112 @@ export function LSPortfolioDashboard({
                 </div>
               ))}
             </div>
+
+            <div className="mt-6 grid gap-6 border-t border-white/10 pt-6">
+              <div>
+                <p className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-zinc-500">
+                  Target vs actual (%)
+                </p>
+                <div className="h-44">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={ratioComparisonData} barGap={4} barCategoryGap="20%">
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+                      <XAxis dataKey="side" tick={{ fill: "#a1a1aa", fontSize: 12 }} axisLine={false} tickLine={false} />
+                      <YAxis
+                        tick={{ fill: "#71717a", fontSize: 11 }}
+                        axisLine={false}
+                        tickLine={false}
+                        tickFormatter={(v) => `${v}%`}
+                        domain={[0, 100]}
+                      />
+                      <Tooltip
+                        formatter={(value) => `${Number(value ?? 0).toFixed(1)}%`}
+                        contentStyle={{
+                          background: "#09090b",
+                          border: "1px solid rgba(255,255,255,0.1)",
+                          borderRadius: 12,
+                        }}
+                      />
+                      <Legend wrapperStyle={{ fontSize: 11, color: "#a1a1aa" }} />
+                      <Bar dataKey="target" name="Target" fill="#22d3ee" radius={[6, 6, 0, 0]} maxBarSize={36} />
+                      <Bar dataKey="actual" name="Actual" fill="#10b981" radius={[6, 6, 0, 0]} maxBarSize={36} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              <div>
+                <p className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-zinc-500">
+                  Pool size ($)
+                </p>
+                <div className="h-44">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={poolComparisonData} barGap={4} barCategoryGap="20%">
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+                      <XAxis dataKey="side" tick={{ fill: "#a1a1aa", fontSize: 12 }} axisLine={false} tickLine={false} />
+                      <YAxis
+                        tick={{ fill: "#71717a", fontSize: 11 }}
+                        axisLine={false}
+                        tickLine={false}
+                        tickFormatter={(v) => formatCurrency(Number(v), true)}
+                      />
+                      <Tooltip
+                        formatter={(value) => formatCurrency(Number(value ?? 0))}
+                        contentStyle={{
+                          background: "#09090b",
+                          border: "1px solid rgba(255,255,255,0.1)",
+                          borderRadius: 12,
+                        }}
+                      />
+                      <Legend wrapperStyle={{ fontSize: 11, color: "#a1a1aa" }} />
+                      <Bar dataKey="target" name="Target" fill="#22d3ee" radius={[6, 6, 0, 0]} maxBarSize={36} />
+                      <Bar dataKey="actual" name="Actual" fill="#f43f5e" radius={[6, 6, 0, 0]} maxBarSize={36} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              <div>
+                <p className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-zinc-500">
+                  Allocation breakdown ($)
+                </p>
+                <div className="h-40">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={allocationData} layout="vertical" barCategoryGap="16%">
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" horizontal={false} />
+                      <XAxis
+                        type="number"
+                        tick={{ fill: "#71717a", fontSize: 11 }}
+                        axisLine={false}
+                        tickLine={false}
+                        tickFormatter={(v) => formatCurrency(Number(v), true)}
+                      />
+                      <YAxis
+                        type="category"
+                        dataKey="name"
+                        tick={{ fill: "#a1a1aa", fontSize: 11 }}
+                        axisLine={false}
+                        tickLine={false}
+                        width={72}
+                      />
+                      <Tooltip
+                        formatter={(value) => formatCurrency(Number(value ?? 0))}
+                        contentStyle={{
+                          background: "#09090b",
+                          border: "1px solid rgba(255,255,255,0.1)",
+                          borderRadius: 12,
+                        }}
+                      />
+                      <Bar dataKey="value" radius={[0, 6, 6, 0]} maxBarSize={20}>
+                        {allocationData.map((entry) => (
+                          <Cell key={entry.name} fill={entry.fill} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
             <Button
               type="button"
               onClick={() => setCashOpen(true)}
@@ -805,6 +930,125 @@ function InlineNum({
         saving && "opacity-50",
       )}
     />
+  );
+}
+
+function TargetRatioEditor({
+  longRatio,
+  disabled,
+  onChange,
+}: {
+  longRatio: number;
+  disabled?: boolean;
+  onChange: (longRatio: number) => void;
+}) {
+  const longPct = Math.round(longRatio * 100);
+  const shortPct = 100 - longPct;
+  const [longText, setLongText] = useState(String(longPct));
+  const [shortText, setShortText] = useState(String(shortPct));
+
+  useEffect(() => {
+    setLongText(String(Math.round(longRatio * 100)));
+    setShortText(String(Math.round((1 - longRatio) * 100)));
+  }, [longRatio]);
+
+  function clampPct(value: number) {
+    return Math.min(100, Math.max(0, Math.round(value)));
+  }
+
+  function applyLongPct(pct: number) {
+    onChange(clampPct(pct) / 100);
+  }
+
+  function applyShortPct(pct: number) {
+    onChange(clampPct(100 - pct) / 100);
+  }
+
+  function commitLongText() {
+    const parsed = Number(longText.replace(/[^\d.]/g, ""));
+    if (!Number.isFinite(parsed)) {
+      setLongText(String(longPct));
+      return;
+    }
+    applyLongPct(parsed);
+  }
+
+  function commitShortText() {
+    const parsed = Number(shortText.replace(/[^\d.]/g, ""));
+    if (!Number.isFinite(parsed)) {
+      setShortText(String(shortPct));
+      return;
+    }
+    applyShortPct(parsed);
+  }
+
+  return (
+    <div className="grid gap-3 rounded-2xl border border-white/10 bg-black/25 p-4">
+      <span className="text-sm font-semibold text-zinc-300">Target Long / Short</span>
+      {(
+        [
+          {
+            label: "Long",
+            text: longText,
+            setText: setLongText,
+            onDec: () => applyLongPct(longPct - 5),
+            onInc: () => applyLongPct(longPct + 5),
+            onCommit: commitLongText,
+            tone: "text-emerald-200",
+          },
+          {
+            label: "Short",
+            text: shortText,
+            setText: setShortText,
+            onDec: () => applyShortPct(shortPct - 5),
+            onInc: () => applyShortPct(shortPct + 5),
+            onCommit: commitShortText,
+            tone: "text-rose-200",
+          },
+        ] as const
+      ).map((row) => (
+        <div key={row.label} className="flex items-center gap-2">
+          <span className={cn("w-12 text-sm font-bold", row.tone)}>{row.label}</span>
+          <Button
+            type="button"
+            disabled={disabled}
+            onClick={row.onDec}
+            className="h-9 w-9 shrink-0 bg-white/5 p-0 text-zinc-200 hover:bg-white/10"
+            aria-label={`Decrease ${row.label.toLowerCase()} target`}
+          >
+            <Minus className="h-4 w-4" />
+          </Button>
+          <div className="relative flex-1">
+            <Input
+              value={row.text}
+              disabled={disabled}
+              inputMode="numeric"
+              onChange={(e) => row.setText(e.target.value)}
+              onBlur={row.onCommit}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  row.onCommit();
+                  (e.target as HTMLInputElement).blur();
+                }
+              }}
+              className="pr-7 text-center font-mono font-bold tabular-nums"
+            />
+            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">
+              %
+            </span>
+          </div>
+          <Button
+            type="button"
+            disabled={disabled}
+            onClick={row.onInc}
+            className="h-9 w-9 shrink-0 bg-white/5 p-0 text-zinc-200 hover:bg-white/10"
+            aria-label={`Increase ${row.label.toLowerCase()} target`}
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
+        </div>
+      ))}
+    </div>
   );
 }
 
