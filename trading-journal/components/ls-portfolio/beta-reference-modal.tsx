@@ -17,6 +17,7 @@ type BetaReferenceModalProps = {
   open: boolean;
   onClose: () => void;
   snapshotDate: string;
+  summary?: BetaReferenceSummary | null;
 };
 
 function fmtBeta(value: number | null, digits = 2) {
@@ -41,10 +42,15 @@ function fmtPctOffHigh(value: number | null) {
   return `${sign}${value.toFixed(1)}%`;
 }
 
-export function BetaReferenceModal({ open, onClose, snapshotDate }: BetaReferenceModalProps) {
+export function BetaReferenceModal({
+  open,
+  onClose,
+  snapshotDate,
+  summary: externalSummary,
+}: BetaReferenceModalProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [summary, setSummary] = useState<BetaReferenceSummary | null>(null);
+  const [summary, setSummary] = useState<BetaReferenceSummary | null>(externalSummary ?? null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -68,10 +74,21 @@ export function BetaReferenceModal({ open, onClose, snapshotDate }: BetaReferenc
   }, [snapshotDate]);
 
   useEffect(() => {
-    if (open) {
-      void load();
+    if (externalSummary) {
+      setSummary(externalSummary);
     }
-  }, [open, load]);
+  }, [externalSummary]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    if (externalSummary) {
+      setSummary(externalSummary);
+      return;
+    }
+    void load();
+  }, [open, externalSummary, load]);
 
   return (
     <Modal

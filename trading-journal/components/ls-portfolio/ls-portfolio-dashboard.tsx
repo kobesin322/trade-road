@@ -35,6 +35,7 @@ import {
   TakeProfitModal,
 } from "@/components/ls-portfolio/ls-portfolio-modals";
 import { BetaReferenceModal } from "@/components/ls-portfolio/beta-reference-modal";
+import { PortfolioWeightedBetaPanel } from "@/components/ls-portfolio/portfolio-weighted-beta-panel";
 import {
   formatOverviewDayLabel,
   OverviewDatePicker,
@@ -52,6 +53,7 @@ import {
   formatPercent,
 } from "@/lib/ls-portfolio";
 import type { ComputedPosition, PortfolioSnapshot, PositionSide } from "@/lib/ls-portfolio-types";
+import type { BetaReferenceSummary } from "@/lib/ls-portfolio-beta-reference";
 import { cn } from "@/lib/utils";
 
 type SideFilter = "all" | PositionSide;
@@ -70,6 +72,16 @@ async function fetchSnapshot(date: string) {
     throw new Error(data.error ?? "Unable to load snapshot.");
   }
   return data as PortfolioSnapshot;
+}
+
+async function fetchBetaSummary(date: string) {
+  const res = await fetch(`/api/ls-portfolio/beta-reference?date=${encodeURIComponent(date)}`, {
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    return null;
+  }
+  return (await res.json()) as BetaReferenceSummary;
 }
 
 export function LSPortfolioDashboard({
@@ -96,10 +108,23 @@ export function LSPortfolioDashboard({
   const [cashAmount, setCashAmount] = useState("");
   const [showEvents, setShowEvents] = useState(true);
   const [betaRefOpen, setBetaRefOpen] = useState(false);
+  const [betaSummary, setBetaSummary] = useState<BetaReferenceSummary | null>(null);
+  const [betaLoading, setBetaLoading] = useState(false);
 
   const showToast = useCallback((message: string, tone: "success" | "error" | "info" = "info") => {
     setToast({ message, tone });
     window.setTimeout(() => setToast(null), 4000);
+  }, []);
+
+  const loadBetaSummary = useCallback(async (date: string) => {
+    setBetaLoading(true);
+    try {
+      setBetaSummary(await fetchBetaSummary(date));
+    } catch {
+      setBetaSummary(null);
+    } finally {
+      setBetaLoading(false);
+    }
   }, []);
 
   const refresh = useCallback(async () => {
@@ -109,12 +134,13 @@ export function LSPortfolioDashboard({
       const data = await fetchSnapshot(selectedDate);
       setSnapshot(data);
       onSnapshotDatesChange?.(data.snapshot_dates);
+      void loadBetaSummary(selectedDate);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Load failed.");
     } finally {
       setLoading(false);
     }
-  }, [selectedDate, onSnapshotDatesChange]);
+  }, [selectedDate, onSnapshotDatesChange, loadBetaSummary]);
 
   useEffect(() => {
     void refresh();
@@ -156,6 +182,7 @@ export function LSPortfolioDashboard({
       if (successMsg) {
         showToast(successMsg, "success");
       }
+      void loadBetaSummary(selectedDate);
       return data as PortfolioSnapshot;
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Request failed.", "error");
@@ -411,6 +438,12 @@ export function LSPortfolioDashboard({
           tone="neutral"
         />
       </div>
+
+      <PortfolioWeightedBetaPanel
+        summary={betaSummary}
+        loading={betaLoading}
+        onOpenReference={() => setBetaRefOpen(true)}
+      />
 
       {/* Ratio bar + drift */}
       <Card>
@@ -790,6 +823,7 @@ export function LSPortfolioDashboard({
         open={betaRefOpen}
         onClose={() => setBetaRefOpen(false)}
         snapshotDate={selectedDate}
+        summary={betaSummary}
       />
 
       <TakeProfitModal

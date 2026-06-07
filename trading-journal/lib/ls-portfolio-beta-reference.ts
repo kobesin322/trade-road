@@ -18,11 +18,24 @@ export type BetaReferencePositionRow = BetaReferenceRow & {
   beta_contribution: number | null;
 };
 
+export type BetaFormulaTerm = {
+  symbol: string;
+  side: PositionSide;
+  weight_pct: number;
+  beta_spy: number;
+  sign: 1 | -1;
+  contribution: number;
+};
+
 export type BetaReferenceSummary = {
   rows: BetaReferencePositionRow[];
   net_beta: number | null;
   long_beta: number | null;
   short_beta: number | null;
+  formula_terms: BetaFormulaTerm[];
+  weighted_long_avg_beta: number | null;
+  weighted_short_avg_beta: number | null;
+  beta_coverage_pct: number;
   as_of: string;
   benchmark: string;
   disclaimer: string;
@@ -223,6 +236,39 @@ export function buildBetaReferenceSummary(
     };
   });
 
+  const formula_terms: BetaFormulaTerm[] = [];
+  let longWeightSum = 0;
+  let longBetaWeightSum = 0;
+  let shortWeightSum = 0;
+  let shortBetaWeightSum = 0;
+  let coveredWeight = 0;
+  let totalWeight = 0;
+
+  for (const row of rows) {
+    totalWeight += row.portfolio_weight_pct;
+    if (row.beta_spy === null) {
+      continue;
+    }
+    coveredWeight += row.portfolio_weight_pct;
+    const sign = row.side === "short" ? -1 : 1;
+    const contribution = sign * (row.portfolio_weight_pct / 100) * row.beta_spy;
+    formula_terms.push({
+      symbol: row.symbol,
+      side: row.side,
+      weight_pct: row.portfolio_weight_pct,
+      beta_spy: row.beta_spy,
+      sign: sign as 1 | -1,
+      contribution,
+    });
+    if (row.side === "long") {
+      longWeightSum += row.portfolio_weight_pct;
+      longBetaWeightSum += row.portfolio_weight_pct * row.beta_spy;
+    } else {
+      shortWeightSum += row.portfolio_weight_pct;
+      shortBetaWeightSum += row.portfolio_weight_pct * row.beta_spy;
+    }
+  }
+
   const net_beta = sumNullable(rows.map((r) => r.beta_contribution));
   const long_beta = sumNullable(
     rows.filter((r) => r.side === "long").map((r) => r.beta_contribution),
@@ -236,6 +282,10 @@ export function buildBetaReferenceSummary(
     net_beta,
     long_beta,
     short_beta,
+    formula_terms,
+    weighted_long_avg_beta: longWeightSum > 0 ? longBetaWeightSum / longWeightSum : null,
+    weighted_short_avg_beta: shortWeightSum > 0 ? shortBetaWeightSum / shortWeightSum : null,
+    beta_coverage_pct: totalWeight > 0 ? (coveredWeight / totalWeight) * 100 : 0,
     as_of: new Date().toISOString(),
     benchmark: "SPY",
     disclaimer:
