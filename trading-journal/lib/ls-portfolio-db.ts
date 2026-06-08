@@ -30,6 +30,13 @@ export function rowToPortfolio(row: PortfolioRow): Portfolio {
     long_cash: num(row.longCash),
     short_cash: num(row.shortCash),
     notes: row.notes,
+    overtrading: row.flagOvertrading,
+    over_focus: row.flagOverFocus,
+    over_position: row.flagOverPosition,
+    not_focusing: row.flagNotFocusing,
+    emotional_trading: row.flagEmotionalTrading,
+    market_confidence: num(row.marketConfidence),
+    self_confidence: num(row.selfConfidence),
     created_at: ts(row.createdAt),
     updated_at: ts(row.updatedAt),
   };
@@ -162,6 +169,13 @@ export async function updatePortfolio(
     long_cash: number;
     short_cash: number;
     notes: string | null;
+    overtrading: boolean;
+    over_focus: boolean;
+    over_position: boolean;
+    not_focusing: boolean;
+    emotional_trading: boolean;
+    market_confidence: number;
+    self_confidence: number;
   }>,
 ) {
   const db = getDb();
@@ -178,6 +192,19 @@ export async function updatePortfolio(
       ...(patch.long_cash !== undefined ? { longCash: String(patch.long_cash) } : {}),
       ...(patch.short_cash !== undefined ? { shortCash: String(patch.short_cash) } : {}),
       ...(patch.notes !== undefined ? { notes: patch.notes } : {}),
+      ...(patch.overtrading !== undefined ? { flagOvertrading: patch.overtrading } : {}),
+      ...(patch.over_focus !== undefined ? { flagOverFocus: patch.over_focus } : {}),
+      ...(patch.over_position !== undefined ? { flagOverPosition: patch.over_position } : {}),
+      ...(patch.not_focusing !== undefined ? { flagNotFocusing: patch.not_focusing } : {}),
+      ...(patch.emotional_trading !== undefined
+        ? { flagEmotionalTrading: patch.emotional_trading }
+        : {}),
+      ...(patch.market_confidence !== undefined
+        ? { marketConfidence: String(patch.market_confidence) }
+        : {}),
+      ...(patch.self_confidence !== undefined
+        ? { selfConfidence: String(patch.self_confidence) }
+        : {}),
     })
     .where(and(eq(portfolios.id, portfolioId), eq(portfolios.userId, userId)))
     .returning();

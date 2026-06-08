@@ -35,6 +35,7 @@ import {
   TakeProfitModal,
 } from "@/components/ls-portfolio/ls-portfolio-modals";
 import { BetaReferenceModal } from "@/components/ls-portfolio/beta-reference-modal";
+import { PortfolioDayConditionPanel } from "@/components/ls-portfolio/portfolio-day-condition-panel";
 import { PortfolioWeightedBetaPanel } from "@/components/ls-portfolio/portfolio-weighted-beta-panel";
 import {
   formatOverviewDayLabel,
@@ -52,11 +53,18 @@ import {
   formatEventSummary,
   formatPercent,
 } from "@/lib/ls-portfolio";
-import type { ComputedPosition, PortfolioSnapshot, PositionSide } from "@/lib/ls-portfolio-types";
+import type { ComputedPosition, PortfolioDayCondition, PortfolioSnapshot, PositionSide } from "@/lib/ls-portfolio-types";
 import type { BetaReferenceSummary } from "@/lib/ls-portfolio-beta-reference";
+import { dayConditionHasContent, portfolioToDayCondition } from "@/lib/portfolio-day-condition";
 import { cn } from "@/lib/utils";
 
 type SideFilter = "all" | PositionSide;
+type PortfolioTab = "book" | "condition";
+
+const PORTFOLIO_TABS: { id: PortfolioTab; label: string }[] = [
+  { id: "book", label: "L/S Book" },
+  { id: "condition", label: "Day condition" },
+];
 
 type LSPortfolioDashboardProps = {
   selectedDate: string;
@@ -110,6 +118,8 @@ export function LSPortfolioDashboard({
   const [betaRefOpen, setBetaRefOpen] = useState(false);
   const [betaSummary, setBetaSummary] = useState<BetaReferenceSummary | null>(null);
   const [betaLoading, setBetaLoading] = useState(false);
+  const [portfolioTab, setPortfolioTab] = useState<PortfolioTab>("book");
+  const [conditionSaving, setConditionSaving] = useState(false);
 
   const showToast = useCallback((message: string, tone: "success" | "error" | "info" = "info") => {
     setToast({ message, tone });
@@ -206,6 +216,19 @@ export function LSPortfolioDashboard({
       },
       "Target ratio updated for this day.",
     );
+  }
+
+  async function saveDayCondition(patch: Partial<PortfolioDayCondition>) {
+    setConditionSaving(true);
+    try {
+      await mutate("/api/ls-portfolio", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: withDate(patch),
+      });
+    } finally {
+      setConditionSaving(false);
+    }
   }
 
   async function updatePositionField(
@@ -323,6 +346,9 @@ export function LSPortfolioDashboard({
     },
   ];
 
+  const dayCondition = portfolioToDayCondition(snapshot.portfolio);
+  const hasDayCondition = dayConditionHasContent(dayCondition);
+
   return (
     <div className="grid gap-6">
       <Toast message={toast?.message ?? null} tone={toast?.tone} />
@@ -357,6 +383,39 @@ export function LSPortfolioDashboard({
         </Card>
       </div>
 
+      <nav className="grid grid-cols-2 gap-2 rounded-[1.25rem] border border-white/10 bg-black/30 p-2">
+        {PORTFOLIO_TABS.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setPortfolioTab(tab.id)}
+            className={cn(
+              "relative rounded-xl px-3 py-3 text-sm font-bold transition",
+              portfolioTab === tab.id
+                ? tab.id === "condition"
+                  ? "bg-rose-400/20 text-rose-50 shadow-[0_0_18px_rgba(251,113,133,0.2)]"
+                  : "bg-cyan-300 text-slate-950 shadow-[0_0_18px_rgba(34,211,238,0.25)]"
+                : "text-zinc-400 hover:bg-white/10 hover:text-white",
+            )}
+          >
+            {tab.label}
+            {tab.id === "condition" && hasDayCondition ? (
+              <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-400" />
+            ) : null}
+          </button>
+        ))}
+      </nav>
+
+      {portfolioTab === "condition" ? (
+        <PortfolioDayConditionPanel
+          portfolio={snapshot.portfolio}
+          selectedDate={selectedDate}
+          disabled={!canUsePersonalJournal}
+          saving={conditionSaving}
+          onSave={saveDayCondition}
+        />
+      ) : (
+        <>
       <Card className="overflow-hidden border-emerald-400/20">
         <CardHeader>
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -818,6 +877,8 @@ export function LSPortfolioDashboard({
           </CardContent>
         ) : null}
       </Card>
+        </>
+      )}
 
       <BetaReferenceModal
         open={betaRefOpen}

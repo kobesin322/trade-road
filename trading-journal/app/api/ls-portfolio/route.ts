@@ -43,6 +43,17 @@ export async function PATCH(request: Request) {
       ...(typeof body.long_cash === "number" ? { long_cash: body.long_cash } : {}),
       ...(typeof body.short_cash === "number" ? { short_cash: body.short_cash } : {}),
       ...(body.notes !== undefined ? { notes: body.notes as string | null } : {}),
+      ...(typeof body.overtrading === "boolean" ? { overtrading: body.overtrading } : {}),
+      ...(typeof body.over_focus === "boolean" ? { over_focus: body.over_focus } : {}),
+      ...(typeof body.over_position === "boolean" ? { over_position: body.over_position } : {}),
+      ...(typeof body.not_focusing === "boolean" ? { not_focusing: body.not_focusing } : {}),
+      ...(typeof body.emotional_trading === "boolean"
+        ? { emotional_trading: body.emotional_trading }
+        : {}),
+      ...(typeof body.market_confidence === "number"
+        ? { market_confidence: body.market_confidence }
+        : {}),
+      ...(typeof body.self_confidence === "number" ? { self_confidence: body.self_confidence } : {}),
     });
     if (!updated) {
       return NextResponse.json({ error: "Snapshot not found." }, { status: 404 });

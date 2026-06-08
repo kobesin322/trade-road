@@ -1,6 +1,24 @@
 export type PositionSide = "long" | "short";
 
-export type Portfolio = {
+export type PortfolioDayCondition = {
+  overtrading: boolean;
+  over_focus: boolean;
+  over_position: boolean;
+  not_focusing: boolean;
+  emotional_trading: boolean;
+  market_confidence: number;
+  self_confidence: number;
+};
+
+export const DAY_CONDITION_FLAGS = [
+  { key: "overtrading" as const, label: "Overtrading" },
+  { key: "over_focus" as const, label: "Over-focus on 1–2 stocks" },
+  { key: "over_position" as const, label: "Over-position" },
+  { key: "not_focusing" as const, label: "Not focusing" },
+  { key: "emotional_trading" as const, label: "Emotional trading" },
+];
+
+export type Portfolio = PortfolioDayCondition & {
   id: string;
   user_id: string;
   snapshot_date: string;
