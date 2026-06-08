@@ -1,0 +1,33 @@
+import { type EmailOtpType } from "@supabase/supabase-js";
+import { type NextRequest, NextResponse } from "next/server";
+
+import { createRouteHandlerClient } from "@/lib/supabase/route-handler";
+
+export async function GET(request: NextRequest) {
+  const { searchParams, origin } = new URL(request.url);
+  const token_hash = searchParams.get("token_hash");
+  const type = searchParams.get("type") as EmailOtpType | null;
+  const next = searchParams.get("next") ?? "/";
+
+  const redirectTo = request.nextUrl.clone();
+  redirectTo.pathname = type === "recovery" ? "/auth/reset-password" : next;
+  redirectTo.searchParams.delete("token_hash");
+  redirectTo.searchParams.delete("type");
+  redirectTo.searchParams.delete("next");
+
+  if (!token_hash || !type) {
+    return NextResponse.redirect(`${origin}/login?error=missing_token`);
+  }
+
+  const response = NextResponse.redirect(redirectTo);
+  const supabase = createRouteHandlerClient(request, response);
+
+  const { error } = await supabase.auth.verifyOtp({ type, token_hash });
+  if (error) {
+    return NextResponse.redirect(
+      `${origin}/login?error=auth&message=${encodeURIComponent(error.message)}`,
+    );
+  }
+
+  return response;
+}
