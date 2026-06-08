@@ -13,6 +13,7 @@ import {
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ALL_TICKER_OPTIONS } from "@/lib/ticker-symbols";
 import { cn } from "@/lib/utils";
 
 type TakeProfitModalProps = {
@@ -223,7 +224,21 @@ export function AddPositionModal({ open, onClose, onSubmit, loading }: AddPositi
             </button>
           ))}
         </div>
-        <Field label="Symbol" value={symbol} onChange={setSymbol} placeholder="TSLA" />
+        <label className="grid gap-1 text-sm font-semibold text-zinc-300">
+          Symbol
+          <Input
+            list="ls-portfolio-tickers"
+            value={symbol}
+            placeholder="TSLA"
+            onChange={(e) => setSymbol(e.target.value.toUpperCase())}
+            className="bg-zinc-900 font-mono uppercase"
+          />
+          <datalist id="ls-portfolio-tickers">
+            {ALL_TICKER_OPTIONS.map((ticker) => (
+              <option key={ticker} value={ticker} />
+            ))}
+          </datalist>
+        </label>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Quantity" value={quantity} onChange={setQuantity} type="number" />
           <Field label="Avg entry $" value={entry} onChange={setEntry} type="number" />

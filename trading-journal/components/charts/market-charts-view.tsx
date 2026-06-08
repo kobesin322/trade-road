@@ -275,7 +275,7 @@ export function MarketChartsView({ chartsReady }: MarketChartsViewProps) {
               <CardTitle>Live Market Charts</CardTitle>
               <p className="mt-1 max-w-3xl text-sm text-zinc-400">
                 Sparklines from Yahoo Finance (free). Select any symbol for a full TradingView chart —
-                5 crypto pairs and 5 US stock tickers.
+                Curated crypto pairs and US stock / ETF tickers.
               </p>
               {lastUpdated ? (
                 <p className="mt-2 text-xs text-zinc-500">

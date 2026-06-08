@@ -1,3 +1,5 @@
+import { US_STOCK_TICKERS } from "@/lib/ticker-symbols";
+
 export type WatchlistItem = {
   id: string;
   label: string;
@@ -44,43 +46,29 @@ export const CRYPTO_WATCHLIST: WatchlistItem[] = [
   },
 ];
 
-export const STOCK_WATCHLIST: WatchlistItem[] = [
-  {
-    id: "aapl",
-    label: "Apple",
-    yahooSymbol: "AAPL",
-    tradingViewSymbol: "NASDAQ:AAPL",
+/** Exchange prefix is approximate — charts use Yahoo symbol for data. */
+const STOCK_EXCHANGE: Partial<Record<string, string>> = {
+  SPY: "AMEX",
+  SOXL: "AMEX",
+  SOXX: "NASDAQ",
+  SQQQ: "NASDAQ",
+  TQQQ: "NASDAQ",
+  EWY: "AMEX",
+  FUTU: "NASDAQ",
+};
+
+function stockToWatchlistItem(symbol: string): WatchlistItem {
+  const exchange = STOCK_EXCHANGE[symbol] ?? "NASDAQ";
+  return {
+    id: symbol.toLowerCase(),
+    label: symbol,
+    yahooSymbol: symbol,
+    tradingViewSymbol: `${exchange}:${symbol}`,
     assetClass: "stock",
-  },
-  {
-    id: "msft",
-    label: "Microsoft",
-    yahooSymbol: "MSFT",
-    tradingViewSymbol: "NASDAQ:MSFT",
-    assetClass: "stock",
-  },
-  {
-    id: "nvda",
-    label: "NVIDIA",
-    yahooSymbol: "NVDA",
-    tradingViewSymbol: "NASDAQ:NVDA",
-    assetClass: "stock",
-  },
-  {
-    id: "tsla",
-    label: "Tesla",
-    yahooSymbol: "TSLA",
-    tradingViewSymbol: "NASDAQ:TSLA",
-    assetClass: "stock",
-  },
-  {
-    id: "spy",
-    label: "S&P 500 ETF",
-    yahooSymbol: "SPY",
-    tradingViewSymbol: "AMEX:SPY",
-    assetClass: "stock",
-  },
-];
+  };
+}
+
+export const STOCK_WATCHLIST: WatchlistItem[] = US_STOCK_TICKERS.map(stockToWatchlistItem);
 
 export const MARKET_WATCHLIST: WatchlistItem[] = [...CRYPTO_WATCHLIST, ...STOCK_WATCHLIST];
 

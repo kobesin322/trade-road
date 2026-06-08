@@ -1,3 +1,5 @@
+import { JOURNAL_TICKER_GROUPS } from "@/lib/ticker-symbols";
+
 export const JOURNAL_STRATEGIES = [
   "BouncyBall Breakout",
   "Backside trade",
@@ -36,10 +38,7 @@ export function isJournalStrategy(value: string): value is JournalStrategy {
   return JOURNAL_STRATEGIES.includes(value as JournalStrategy);
 }
 
-export const JOURNAL_PAIR_OPTIONS = [
-  { group: "Crypto", symbols: ["BTC-USD", "ETH-USD", "SOL-USD", "BNB-USD", "XRP-USD"] },
-  { group: "US Stocks", symbols: ["AAPL", "MSFT", "NVDA", "TSLA", "SPY"] },
-] as const;
+export const JOURNAL_PAIR_OPTIONS = JOURNAL_TICKER_GROUPS;
 
 export const JOURNAL_PAIR_VALUES = JOURNAL_PAIR_OPTIONS.flatMap((group) => group.symbols);
 
