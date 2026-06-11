@@ -3,6 +3,7 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { dailyOverviewTrades, dailyOverviews, type DailyOverviewRow, trades } from "@/db/schema";
 import { getDb } from "@/lib/db";
 import type { DailyOverview, DailyOverviewRecord } from "@/lib/daily-overview-types";
+import { normalizeMistakeFlags } from "@/lib/trading-mistakes";
 import { rowToTrade } from "@/lib/trade-db";
 
 function formatOverviewDate(value: string | Date) {
@@ -28,6 +29,8 @@ export function rowToDailyOverview(
     marketAnalysisHtml: row.marketAnalysisHtml ?? null,
     preTradeListScreenshots: parseScreenshotArray(row.preTradeListScreenshots),
     marketAnalysisScreenshots: parseScreenshotArray(row.marketAnalysisScreenshots),
+    mistakeFlags: normalizeMistakeFlags(row.mistakeFlags),
+    mistakesNotes: row.mistakesNotes ?? null,
     linkedTradeIds,
     createdAt:
       row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
@@ -172,6 +175,8 @@ export async function upsertDailyOverview(
     marketAnalysisHtml?: string | null;
     preTradeListScreenshots?: DailyOverview["preTradeListScreenshots"];
     marketAnalysisScreenshots?: DailyOverview["marketAnalysisScreenshots"];
+    mistakeFlags?: string[];
+    mistakesNotes?: string | null;
     linkedTradeIds?: string[];
   },
 ) {
@@ -191,6 +196,8 @@ export async function upsertDailyOverview(
       marketAnalysisHtml: input.marketAnalysisHtml ?? null,
       preTradeListScreenshots: input.preTradeListScreenshots ?? [],
       marketAnalysisScreenshots: input.marketAnalysisScreenshots ?? [],
+      mistakeFlags: normalizeMistakeFlags(input.mistakeFlags),
+      mistakesNotes: input.mistakesNotes ?? null,
     })
     .onConflictDoUpdate({
       target: [dailyOverviews.userId, dailyOverviews.overviewDate],
@@ -208,6 +215,10 @@ export async function upsertDailyOverview(
         ...(input.marketAnalysisScreenshots !== undefined
           ? { marketAnalysisScreenshots: input.marketAnalysisScreenshots }
           : {}),
+        ...(input.mistakeFlags !== undefined
+          ? { mistakeFlags: normalizeMistakeFlags(input.mistakeFlags) }
+          : {}),
+        ...(input.mistakesNotes !== undefined ? { mistakesNotes: input.mistakesNotes } : {}),
         updatedAt: sql`now()`,
       },
     })

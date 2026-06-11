@@ -10,6 +10,7 @@ import {
   OverviewDatePicker,
 } from "@/components/journal/overview-date-picker";
 import { RichTextEditor } from "@/components/journal/rich-text-editor";
+import { DailyOverviewMistakesPanel } from "@/components/journal/daily-overview-mistakes-panel";
 import {
   PendingScreenshot,
   readFileAsDataUrl,
@@ -21,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { DailyOverview } from "@/lib/daily-overview-types";
 import { overviewHasContent } from "@/lib/daily-overview-utils";
+import { countMistakes } from "@/lib/trading-mistakes";
 import { openTradeJournalInNewTab } from "@/lib/journal-navigation";
 import type { TradeScreenshot } from "@/lib/journal-constants";
 import type { Trade } from "@/lib/trades";
@@ -45,6 +47,8 @@ function emptyFields() {
     marketAnalysisHtml: "",
     preTradeListScreenshots: [] as TradeScreenshot[],
     marketAnalysisScreenshots: [] as TradeScreenshot[],
+    mistakeFlags: [] as string[],
+    mistakesNotes: "",
     linkedTradeIds: [] as string[],
   };
 }
@@ -59,6 +63,8 @@ function overviewToFields(overview: DailyOverview | undefined) {
     marketAnalysisHtml: overview.marketAnalysisHtml ?? "",
     preTradeListScreenshots: [...overview.preTradeListScreenshots],
     marketAnalysisScreenshots: [...overview.marketAnalysisScreenshots],
+    mistakeFlags: [...overview.mistakeFlags],
+    mistakesNotes: overview.mistakesNotes ?? "",
     linkedTradeIds: [...overview.linkedTradeIds],
   };
 }
@@ -205,6 +211,15 @@ export function DailyOverviewPanel({
     });
   }
 
+  function toggleMistake(key: string) {
+    setFields((prev) => {
+      const mistakeFlags = prev.mistakeFlags.includes(key)
+        ? prev.mistakeFlags.filter((item) => item !== key)
+        : [...prev.mistakeFlags, key];
+      return { ...prev, mistakeFlags };
+    });
+  }
+
   function handleSave() {
     startTransition(async () => {
       const result = await saveDailyOverview(
@@ -215,6 +230,8 @@ export function DailyOverviewPanel({
           marketAnalysisHtml: fields.marketAnalysisHtml || null,
           preTradeListScreenshots: fields.preTradeListScreenshots,
           marketAnalysisScreenshots: fields.marketAnalysisScreenshots,
+          mistakeFlags: fields.mistakeFlags,
+          mistakesNotes: fields.mistakesNotes.trim() || null,
           linkedTradeIds: fields.linkedTradeIds,
         },
         {
@@ -291,7 +308,7 @@ export function DailyOverviewPanel({
               </p>
             </div>
 
-            <div className="grid gap-2 sm:grid-cols-3">
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
               <div className="rounded-2xl border border-white/10 bg-black/25 px-4 py-3">
                 <div className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">
                   Trades this day
@@ -303,6 +320,14 @@ export function DailyOverviewPanel({
                   Linked
                 </div>
                 <div className="mt-1 text-xl font-black text-cyan-100">{fields.linkedTradeIds.length}</div>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-black/25 px-4 py-3">
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">
+                  Mistakes
+                </div>
+                <div className="mt-1 text-xl font-black text-rose-200">
+                  {countMistakes(fields.mistakeFlags)}
+                </div>
               </div>
               <div className="rounded-2xl border border-white/10 bg-black/25 px-4 py-3">
                 <div className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">
@@ -378,6 +403,13 @@ export function DailyOverviewPanel({
             onPick={(event) => void onPickScreenshots("market", event)}
           />
         </div>
+
+        <DailyOverviewMistakesPanel
+          mistakeFlags={fields.mistakeFlags}
+          mistakesNotes={fields.mistakesNotes}
+          onToggle={toggleMistake}
+          onNotesChange={(mistakesNotes) => setFields((prev) => ({ ...prev, mistakesNotes }))}
+        />
 
         <div className="grid gap-3 rounded-3xl border border-white/10 bg-white/[0.03] p-4">
           <div className="flex items-center justify-between gap-2">

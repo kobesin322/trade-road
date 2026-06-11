@@ -69,6 +69,11 @@ export const dailyOverviews = pgTable(
       .$type<TradeScreenshot[]>()
       .notNull()
       .default(sql`'[]'::jsonb`),
+    mistakeFlags: jsonb("mistake_flags")
+      .$type<string[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    mistakesNotes: text("mistakes_notes"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

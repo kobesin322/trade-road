@@ -8,6 +8,7 @@ import {
 } from "@/lib/daily-overview-db";
 import type { DailyOverviewInput } from "@/lib/daily-overview-types";
 import type { TradeScreenshot } from "@/lib/journal-constants";
+import { normalizeMistakeFlags } from "@/lib/trading-mistakes";
 
 export class DailyOverviewServiceError extends Error {
   status: number;
@@ -79,6 +80,11 @@ function parseDailyOverviewInput(body: unknown): DailyOverviewInput {
     marketAnalysisHtml: candidate.marketAnalysisHtml ?? null,
     preTradeListScreenshots: parseScreenshots(candidate.preTradeListScreenshots),
     marketAnalysisScreenshots: parseScreenshots(candidate.marketAnalysisScreenshots),
+    mistakeFlags:
+      candidate.mistakeFlags !== undefined
+        ? normalizeMistakeFlags(candidate.mistakeFlags)
+        : undefined,
+    mistakesNotes: candidate.mistakesNotes ?? null,
     linkedTradeIds: linkedTradeIds ?? [],
   };
 }

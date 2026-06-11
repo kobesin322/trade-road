@@ -70,6 +70,7 @@ import { cn } from "@/lib/utils";
 import { buildDailyProfit, getTradeStats, type Trade, type TradeOutcome } from "@/lib/trades";
 import type { DailyOverview } from "@/lib/daily-overview-types";
 import { buildOverviewsByDate, overviewHasContent } from "@/lib/daily-overview-utils";
+import { countMistakes } from "@/lib/trading-mistakes";
 
 const mainViews = ["Dashboard", "Journal", "Portfolio", "Charts", "Calendar"] as const;
 const toolLinks = [
@@ -1679,6 +1680,12 @@ function CalendarView({
                     <span className="font-bold text-violet-200">Market · </span>
                     {selectedDayOverview.marketAnalysisScreenshots.length} screenshot
                     {selectedDayOverview.marketAnalysisScreenshots.length === 1 ? "" : "s"}
+                  </p>
+                ) : null}
+                {selectedDayOverview.mistakeFlags.length > 0 ? (
+                  <p>
+                    <span className="font-bold text-rose-200">Mistakes · </span>
+                    {countMistakes(selectedDayOverview.mistakeFlags)} flagged
                   </p>
                 ) : null}
                 {selectedDayOverview.linkedTradeIds.length > 0 ? (

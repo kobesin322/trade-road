@@ -10,6 +10,8 @@ export function overviewHasContent(overview: DailyOverview | null | undefined) {
       overview.marketAnalysisHtml?.replace(/<[^>]*>/g, "").trim() ||
       overview.preTradeListScreenshots.length ||
       overview.marketAnalysisScreenshots.length ||
+      overview.mistakeFlags.length ||
+      overview.mistakesNotes?.trim() ||
       overview.linkedTradeIds.length,
   );
 }

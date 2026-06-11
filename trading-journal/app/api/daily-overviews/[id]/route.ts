@@ -65,6 +65,14 @@ export async function PATCH(request: Request, context: RouteContext) {
         body.marketAnalysisScreenshots !== undefined
           ? (body.marketAnalysisScreenshots as typeof existing.marketAnalysisScreenshots)
           : existing.marketAnalysisScreenshots,
+      mistakeFlags:
+        body.mistakeFlags !== undefined
+          ? (body.mistakeFlags as string[])
+          : existing.mistakeFlags,
+      mistakesNotes:
+        body.mistakesNotes !== undefined
+          ? (body.mistakesNotes as string | null)
+          : existing.mistakesNotes,
       linkedTradeIds:
         body.linkedTradeIds !== undefined
           ? (body.linkedTradeIds as string[])

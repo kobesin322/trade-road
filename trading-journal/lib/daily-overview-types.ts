@@ -6,6 +6,8 @@ export type DailyOverview = {
   marketAnalysisHtml: string | null;
   preTradeListScreenshots: import("@/lib/journal-constants").TradeScreenshot[];
   marketAnalysisScreenshots: import("@/lib/journal-constants").TradeScreenshot[];
+  mistakeFlags: string[];
+  mistakesNotes: string | null;
   linkedTradeIds: string[];
   createdAt: string;
   updatedAt: string;
@@ -18,6 +20,8 @@ export type DailyOverviewInput = {
   marketAnalysisHtml?: string | null;
   preTradeListScreenshots?: import("@/lib/journal-constants").TradeScreenshot[];
   marketAnalysisScreenshots?: import("@/lib/journal-constants").TradeScreenshot[];
+  mistakeFlags?: string[];
+  mistakesNotes?: string | null;
   linkedTradeIds?: string[];
 };
 
