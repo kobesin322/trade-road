@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { TradingViewMultiTimeframe } from "@/components/charts/trading-view-multi-timeframe";
 import type { MarketOHLCVPayload } from "@/lib/market-data/yahoo-chart";
 import {
   CRYPTO_WATCHLIST,
@@ -44,7 +45,14 @@ import { cn } from "@/lib/utils";
 
 const DEFAULT_TICKER_ID = CRYPTO_WATCHLIST[0].id;
 
-type ChartTab = "price" | "cvd" | "equity";
+type ChartTab = "price" | "cvd" | "equity" | "tradingview";
+
+const chartTabs: Array<{ id: ChartTab; label: string }> = [
+  { id: "price", label: "Price + Delta" },
+  { id: "cvd", label: "CVD" },
+  { id: "tradingview", label: "TradingView MTF" },
+  { id: "equity", label: "Equity" },
+];
 
 type ChartRow = {
   time: string;
@@ -661,22 +669,33 @@ export function OrderFlowBacktester() {
                           ? `${tickerLabel} · Price + Delta`
                           : activeTab === "cvd"
                             ? `${tickerLabel} · CVD`
-                            : "Backtest Equity"}
+                            : activeTab === "tradingview"
+                              ? `${tickerLabel} · Multi-Timeframe TradingView`
+                              : "Backtest Equity"}
                       </CardTitle>
                       <p className="mt-1 text-sm text-zinc-400">
-                        CVD divergence on <span className="font-black text-white">{tickerLabel}</span> means
-                        price makes a fresh extreme while cumulative delta fails to confirm the move.
+                        {activeTab === "tradingview" ? (
+                          <>
+                            Compare <span className="font-black text-white">{tickerLabel}</span> across 5m, 15m,
+                            1H, 4H, and daily before validating bounce + CVD setups.
+                          </>
+                        ) : (
+                          <>
+                            CVD divergence on <span className="font-black text-white">{tickerLabel}</span> means
+                            price makes a fresh extreme while cumulative delta fails to confirm the move.
+                          </>
+                        )}
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {(["price", "cvd", "equity"] as const).map((tab) => (
+                      {chartTabs.map((tab) => (
                         <Button
-                          key={tab}
+                          key={tab.id}
                           type="button"
-                          onClick={() => setActiveTab(tab)}
-                          className={cn("px-3 py-2 text-xs", activeTab === tab && "border-cyan-300/60 bg-cyan-300/15")}
+                          onClick={() => setActiveTab(tab.id)}
+                          className={cn("px-3 py-2 text-xs", activeTab === tab.id && "border-cyan-300/60 bg-cyan-300/15")}
                         >
-                          {tab === "price" ? "Price + Delta" : tab === "cvd" ? "CVD" : "Equity"}
+                          {tab.label}
                         </Button>
                       ))}
                     </div>
@@ -684,7 +703,12 @@ export function OrderFlowBacktester() {
                 </CardHeader>
                 <CardContent>
                   <div className="rounded-3xl border border-white/10 bg-zinc-950/70 p-3">
-                    {loading && !bars.length ? (
+                    {activeTab === "tradingview" ? (
+                      <TradingViewMultiTimeframe
+                        symbol={selectedTicker.tradingViewSymbol}
+                        tickerLabel={tickerLabel}
+                      />
+                    ) : loading && !bars.length ? (
                       <div className="flex min-h-[430px] items-center justify-center gap-3 text-sm text-zinc-400">
                         <Loader2 className="h-5 w-5 animate-spin text-cyan-200" />
                         Loading {selectedTicker.yahooSymbol} OHLCV...

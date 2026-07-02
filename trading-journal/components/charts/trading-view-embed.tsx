@@ -51,10 +51,19 @@ function loadTradingViewScript() {
 
 type TradingViewEmbedProps = {
   symbol: string;
+  interval?: string;
   className?: string;
+  hideSideToolbar?: boolean;
+  hideTopToolbar?: boolean;
 };
 
-export function TradingViewEmbed({ symbol, className }: TradingViewEmbedProps) {
+export function TradingViewEmbed({
+  symbol,
+  interval = "15",
+  className,
+  hideSideToolbar = false,
+  hideTopToolbar = false,
+}: TradingViewEmbedProps) {
   const reactId = useId();
   const containerId = `traderoad-tv-${reactId.replace(/:/g, "")}`;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -73,16 +82,17 @@ export function TradingViewEmbed({ symbol, className }: TradingViewEmbedProps) {
         new window.TradingView.widget({
           autosize: true,
           symbol,
-          interval: "15",
+          interval,
           timezone: "Etc/UTC",
           theme: "dark",
           style: "1",
           locale: "en",
           enable_publishing: false,
           allow_symbol_change: false,
-          hide_side_toolbar: false,
+          hide_side_toolbar: hideSideToolbar,
+          hide_top_toolbar: hideTopToolbar,
           withdateranges: true,
-          details: true,
+          details: !hideTopToolbar,
           hotlist: false,
           calendar: false,
           container_id: containerId,
@@ -101,7 +111,7 @@ export function TradingViewEmbed({ symbol, className }: TradingViewEmbedProps) {
         container.innerHTML = "";
       }
     };
-  }, [containerId, symbol]);
+  }, [containerId, hideSideToolbar, hideTopToolbar, interval, symbol]);
 
   return <div id={containerId} ref={containerRef} className={className ?? "h-[420px] w-full"} />;
 }
