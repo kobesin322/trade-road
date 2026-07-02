@@ -3,6 +3,36 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { ADMIN_SESSION_COOKIE, isAdminSessionCookie } from "@/lib/auth";
 
+function hasSupabaseAuthCookies(request: NextRequest) {
+  return request.cookies.getAll().some(
+    (cookie) => cookie.name.startsWith("sb-") && cookie.name.includes("auth-token"),
+  );
+}
+
+function clearSupabaseAuthCookies(request: NextRequest, response: NextResponse) {
+  for (const cookie of request.cookies.getAll()) {
+    if (cookie.name.startsWith("sb-") && cookie.name.includes("auth-token")) {
+      response.cookies.delete(cookie.name);
+    }
+  }
+}
+
+function redirectToLogin(request: NextRequest) {
+  const url = request.nextUrl.clone();
+  url.pathname = "/login";
+  return NextResponse.redirect(url);
+}
+
+function unauthenticatedResponse(request: NextRequest, isAuthPath: boolean) {
+  if (isAuthPath) {
+    return NextResponse.next();
+  }
+
+  const response = redirectToLogin(request);
+  clearSupabaseAuthCookies(request, response);
+  return response;
+}
+
 export async function updateSession(request: NextRequest) {
   const path = request.nextUrl.pathname;
   const isAuthPath = path.startsWith("/login") || path.startsWith("/auth");
@@ -22,10 +52,11 @@ export async function updateSession(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!supabaseUrl || !supabaseKey) {
-    if (!isAuthPath) {
-      return NextResponse.redirect(new URL("/login", request.url));
-    }
-    return NextResponse.next();
+    return unauthenticatedResponse(request, isAuthPath);
+  }
+
+  if (!hasSupabaseAuthCookies(request)) {
+    return unauthenticatedResponse(request, isAuthPath);
   }
 
   let supabaseResponse = NextResponse.next({
@@ -49,17 +80,23 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let user: { id: string } | null = null;
 
-  if (!user && !isAuthPath) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/login";
-    return NextResponse.redirect(url);
+  try {
+    const { data, error } = await supabase.auth.getUser();
+    if (error) {
+      return unauthenticatedResponse(request, isAuthPath);
+    }
+    user = data.user;
+  } catch {
+    return unauthenticatedResponse(request, isAuthPath);
   }
 
-  if (user && path === "/login") {
+  if (!user) {
+    return unauthenticatedResponse(request, isAuthPath);
+  }
+
+  if (path === "/login") {
     const url = request.nextUrl.clone();
     url.pathname = "/";
     return NextResponse.redirect(url);
