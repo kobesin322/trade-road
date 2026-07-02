@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 
-import { OrderFlowBacktester } from "@/components/tools/order-flow-backtester";
 import { OrderFlowTerminal } from "@/components/tools/order-flow-terminal";
 
 export const metadata: Metadata = {
@@ -9,10 +8,5 @@ export const metadata: Metadata = {
 };
 
 export default function OrderFlowToolPage() {
-  return (
-    <>
-      <OrderFlowTerminal />
-      <OrderFlowBacktester />
-    </>
-  );
+  return <OrderFlowTerminal />;
 }

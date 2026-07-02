@@ -1,11 +1,17 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Activity, ArrowLeft, Boxes, Network } from "lucide-react";
+import { Activity, ArrowLeft, Boxes, FlaskConical, Network } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { getSessionUser } from "@/lib/auth";
 
 const tools = [
+  {
+    href: "/?view=Strategy%20Lab",
+    label: "Strategy Lab",
+    helper: "CVD bounce backtester",
+    icon: FlaskConical,
+  },
   {
     href: "/tools/correlation",
     label: "Correlation Matrix",
@@ -60,7 +66,7 @@ export default async function ToolsLayout({
           </div>
           <nav
             aria-label="Tools"
-            className="mt-5 grid gap-2 rounded-[1.5rem] border border-white/10 bg-black/30 p-2 md:grid-cols-2"
+            className="mt-5 grid gap-2 rounded-[1.5rem] border border-white/10 bg-black/30 p-2 md:grid-cols-3"
           >
             {tools.map((tool) => (
               <Link

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Area,
   Bar,
@@ -14,14 +14,19 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Download, FileUp, Gauge, RotateCcw, Sigma } from "lucide-react";
+import { Download, FileUp, Gauge, Loader2, RefreshCcw, RotateCcw, Sigma } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import type { MarketOHLCVPayload } from "@/lib/market-data/yahoo-chart";
 import {
-  createSampleBars,
+  CRYPTO_WATCHLIST,
+  STOCK_WATCHLIST,
+  type WatchlistItem,
+} from "@/lib/market-data/symbols";
+import {
   enhanceOrderFlowBars,
   generateEnhancedSignals,
   parseOHLCVCSV,
@@ -36,6 +41,8 @@ import {
   type StrategySignal,
 } from "@/lib/orderflow/types";
 import { cn } from "@/lib/utils";
+
+const DEFAULT_TICKER_ID = CRYPTO_WATCHLIST[0].id;
 
 type ChartTab = "price" | "cvd" | "equity";
 
@@ -267,9 +274,11 @@ function StrategyTooltip({ active, payload, label }: { active?: boolean; payload
 function PriceDeltaChart({
   chartData,
   signals,
+  tickerLabel,
 }: {
   chartData: ChartRow[];
   signals: StrategySignal[];
+  tickerLabel: string;
 }) {
   return (
     <ResponsiveContainer width="100%" height={430}>
@@ -279,8 +288,8 @@ function PriceDeltaChart({
         <YAxis yAxisId="price" tick={{ fill: "#a1a1aa", fontSize: 11 }} domain={["dataMin", "dataMax"]} />
         <YAxis yAxisId="delta" orientation="right" tick={{ fill: "#71717a", fontSize: 11 }} />
         <Tooltip content={<StrategyTooltip />} />
-        <Bar yAxisId="delta" dataKey="barDelta" name="Bar delta" fill="rgba(34,211,238,0.28)" />
-        <Line yAxisId="price" type="monotone" dataKey="close" name="Close" stroke="#f8fafc" strokeWidth={2} dot={false} />
+        <Bar yAxisId="delta" dataKey="barDelta" name={`${tickerLabel} bar delta`} fill="rgba(34,211,238,0.28)" />
+        <Line yAxisId="price" type="monotone" dataKey="close" name={`${tickerLabel} close`} stroke="#f8fafc" strokeWidth={2} dot={false} />
         {signals.slice(-50).map((signal) => (
           <ReferenceDot
             key={signal.id}
@@ -297,7 +306,7 @@ function PriceDeltaChart({
   );
 }
 
-function CvdChart({ chartData }: { chartData: ChartRow[] }) {
+function CvdChart({ chartData, tickerLabel }: { chartData: ChartRow[]; tickerLabel: string }) {
   return (
     <ResponsiveContainer width="100%" height={430}>
       <LineChart data={chartData}>
@@ -305,7 +314,7 @@ function CvdChart({ chartData }: { chartData: ChartRow[] }) {
         <XAxis dataKey="time" tick={{ fill: "#71717a", fontSize: 11 }} minTickGap={28} />
         <YAxis tick={{ fill: "#a1a1aa", fontSize: 11 }} />
         <Tooltip content={<StrategyTooltip />} />
-        <Line type="monotone" dataKey="cumulativeDelta" name="CVD" stroke="#22d3ee" strokeWidth={2.5} dot={false} />
+        <Line type="monotone" dataKey="cumulativeDelta" name={`${tickerLabel} CVD`} stroke="#22d3ee" strokeWidth={2.5} dot={false} />
       </LineChart>
     </ResponsiveContainer>
   );
@@ -358,8 +367,9 @@ function BacktestMetrics({ result }: { result: BacktestResult }) {
   );
 }
 
-function exportSignals(signals: StrategySignal[]) {
+function exportSignals(signals: StrategySignal[], tickerSymbol: string) {
   const header = [
+    "ticker",
     "timestamp",
     "direction",
     "entry",
@@ -371,6 +381,7 @@ function exportSignals(signals: StrategySignal[]) {
     "reason",
   ];
   const rows = signals.map((signal) => [
+    tickerSymbol,
     new Date(signal.timestamp).toISOString(),
     signal.direction,
     signal.entry,
@@ -385,17 +396,144 @@ function exportSignals(signals: StrategySignal[]) {
   const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
   const link = document.createElement("a");
   link.href = url;
-  link.download = "order-flow-signals.csv";
+  link.download = `${tickerSymbol.replace(/[^a-z0-9.-]+/gi, "-").toLowerCase()}-order-flow-signals.csv`;
   link.click();
   URL.revokeObjectURL(url);
 }
 
+function TickerSelector({
+  selectedTickerId,
+  onChange,
+}: {
+  selectedTickerId: string;
+  onChange: (tickerId: string) => void;
+}) {
+  return (
+    <label className="grid gap-2 rounded-2xl border border-white/10 bg-black/25 p-3">
+      <span className="text-xs font-black uppercase tracking-[0.14em] text-zinc-500">Ticker</span>
+      <select
+        value={selectedTickerId}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-11 rounded-2xl border border-white/10 bg-zinc-950 px-3 text-sm font-black text-white outline-none transition focus:border-cyan-300/60"
+      >
+        <optgroup label="Crypto">
+          {CRYPTO_WATCHLIST.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.label} ({item.yahooSymbol})
+            </option>
+          ))}
+        </optgroup>
+        <optgroup label="US Stocks">
+          {STOCK_WATCHLIST.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.label} ({item.yahooSymbol})
+            </option>
+          ))}
+        </optgroup>
+      </select>
+    </label>
+  );
+}
+
+function ActiveTickerBanner({
+  item,
+  marketPayload,
+  dataSource,
+}: {
+  item: WatchlistItem;
+  marketPayload: MarketOHLCVPayload | null;
+  dataSource: "market" | "csv";
+}) {
+  return (
+    <div className="rounded-3xl border border-cyan-300/20 bg-cyan-300/10 p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge tone={item.assetClass === "crypto" ? "blue" : "neutral"}>
+          {item.assetClass === "crypto" ? "Crypto" : "US Stock"}
+        </Badge>
+        <Badge tone="gold">{dataSource === "csv" ? "Custom CSV" : "Yahoo Finance"}</Badge>
+      </div>
+      <div className="mt-3 flex flex-wrap items-end gap-4">
+        <div>
+          <div className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">Active ticker</div>
+          <div className="mt-1 text-2xl font-black text-white">{item.label}</div>
+        </div>
+        <div>
+          <div className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">Symbol</div>
+          <div className="mt-1 font-mono text-lg font-black text-cyan-100">{item.yahooSymbol}</div>
+        </div>
+        {marketPayload ? (
+          <div>
+            <div className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">Last price</div>
+            <div className="mt-1 font-mono text-lg font-black text-white">
+              {formatValue(marketPayload.price, item.assetClass === "crypto" ? "number" : "currency")}
+            </div>
+          </div>
+        ) : null}
+      </div>
+      <p className="mt-3 text-sm text-cyan-50/75">
+        Bar delta, CVD, and divergence markers below are computed for{" "}
+        <span className="font-black text-white">{item.yahooSymbol}</span>
+        {marketPayload
+          ? ` · ${marketPayload.interval} bars · ${marketPayload.range} lookback`
+          : ""}
+        .
+      </p>
+    </div>
+  );
+}
+
 export function OrderFlowBacktester() {
-  const [bars, setBars] = useState<OHLCVBar[]>(() => createSampleBars());
+  const [selectedTickerId, setSelectedTickerId] = useState(DEFAULT_TICKER_ID);
+  const [bars, setBars] = useState<OHLCVBar[]>([]);
   const [params, setParams] = useState<StrategyParams>(DEFAULT_STRATEGY_PARAMS);
   const [activeTab, setActiveTab] = useState<ChartTab>("price");
-  const [dataLabel, setDataLabel] = useState("Sample 15m OHLCV");
+  const [dataSource, setDataSource] = useState<"market" | "csv">("market");
+  const [marketPayload, setMarketPayload] = useState<MarketOHLCVPayload | null>(null);
+  const [loading, setLoading] = useState(true);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const selectedTicker = useMemo(
+    () => [...CRYPTO_WATCHLIST, ...STOCK_WATCHLIST].find((item) => item.id === selectedTickerId) ?? CRYPTO_WATCHLIST[0],
+    [selectedTickerId],
+  );
+
+  const loadTicker = useCallback(async (tickerId: string) => {
+    setLoading(true);
+    setLoadError(null);
+
+    try {
+      const response = await fetch(`/api/market-data/ohlcv?id=${encodeURIComponent(tickerId)}&range=5d&interval=15m`, {
+        cache: "no-store",
+      });
+      const payload: unknown = await response.json();
+
+      if (!response.ok) {
+        const message =
+          payload && typeof payload === "object" && "error" in payload
+            ? String((payload as { error: unknown }).error)
+            : "Unable to load ticker OHLCV.";
+        throw new Error(message);
+      }
+
+      const nextPayload = payload as MarketOHLCVPayload;
+      setMarketPayload(nextPayload);
+      setBars(nextPayload.bars);
+      setDataSource("market");
+      setUploadError(null);
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "Unable to load ticker OHLCV.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (dataSource === "csv") {
+      return;
+    }
+    void loadTicker(selectedTickerId);
+  }, [dataSource, loadTicker, selectedTickerId]);
 
   const enhancedBars = useMemo(() => enhanceOrderFlowBars(bars, params), [bars, params]);
   const signals = useMemo(() => generateEnhancedSignals(enhancedBars, params), [enhancedBars, params]);
@@ -412,6 +550,11 @@ export function OrderFlowBacktester() {
     [enhancedBars],
   );
 
+  const divergenceBars = useMemo(
+    () => enhancedBars.filter((bar: OrderFlowBar) => bar.deltaDivergence),
+    [enhancedBars],
+  );
+
   const handleFile = async (file: File | undefined) => {
     if (!file) {
       return;
@@ -424,11 +567,17 @@ export function OrderFlowBacktester() {
     }
 
     setBars(parsed);
-    setDataLabel(file.name);
+    setMarketPayload(null);
+    setDataSource("csv");
     setUploadError(null);
   };
 
-  const divergenceCount = enhancedBars.filter((bar: OrderFlowBar) => bar.deltaDivergence).length;
+  const handleTickerChange = (tickerId: string) => {
+    setSelectedTickerId(tickerId);
+    setDataSource("market");
+  };
+
+  const tickerLabel = selectedTicker.yahooSymbol;
 
   return (
     <section className="grid gap-6">
@@ -441,28 +590,44 @@ export function OrderFlowBacktester() {
                 Bounce Momentum Exhaustion Backtester
               </CardTitle>
               <p className="mt-2 max-w-3xl text-sm text-zinc-400 sm:text-base">
-                Upload OHLCV data, approximate bar delta and CVD, detect support/resistance
-                bounces with delta confirmation, then simulate SL/TP trades in the browser.
+                Pick a ticker, load Yahoo Finance OHLCV, approximate bar delta and CVD, detect
+                support/resistance bounces with delta confirmation, then simulate SL/TP trades.
               </p>
             </div>
             <div className="grid gap-3 rounded-3xl border border-white/10 bg-black/30 p-3 sm:grid-cols-2">
-              <MetricCard label="Bars loaded" value={String(bars.length)} />
-              <MetricCard label="Signals" value={String(signals.length)} tone="text-cyan-100" />
+              <MetricCard label="Active ticker" value={tickerLabel} tone="text-cyan-100" />
+              <MetricCard label="Signals" value={String(signals.length)} tone="text-emerald-200" />
             </div>
           </div>
         </CardHeader>
         <CardContent className="grid gap-4">
+          <ActiveTickerBanner item={selectedTicker} marketPayload={marketPayload} dataSource={dataSource} />
+
+          {loadError ? <div className="text-sm text-rose-200">{loadError}</div> : null}
+
           <div className="grid gap-4 xl:grid-cols-[0.78fr_1.5fr]">
             <div className="grid gap-4">
               <Card className="border-white/10 bg-black/35">
                 <CardHeader>
-                  <CardTitle>Data Input</CardTitle>
+                  <div className="flex items-center justify-between gap-3">
+                    <CardTitle>Data Input</CardTitle>
+                    <Button
+                      type="button"
+                      disabled={loading || dataSource === "csv"}
+                      onClick={() => void loadTicker(selectedTickerId)}
+                      className="px-3 py-2 text-xs"
+                    >
+                      {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCcw className="h-3.5 w-3.5" />}
+                      Refresh
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent className="grid gap-3">
+                  <TickerSelector selectedTickerId={selectedTickerId} onChange={handleTickerChange} />
                   <label className="grid cursor-pointer gap-3 rounded-3xl border border-dashed border-cyan-300/25 bg-cyan-300/10 p-5 text-center transition hover:border-cyan-300/50">
                     <FileUp className="mx-auto h-8 w-8 text-cyan-100" />
                     <span className="text-sm font-black text-white">Upload OHLCV CSV</span>
-                    <span className="text-xs text-zinc-400">Headers: timestamp, open, high, low, close, volume</span>
+                    <span className="text-xs text-zinc-400">Overrides ticker feed · timestamp, open, high, low, close, volume</span>
                     <Input
                       type="file"
                       accept=".csv,text/csv"
@@ -471,7 +636,8 @@ export function OrderFlowBacktester() {
                     />
                   </label>
                   <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3 text-sm text-zinc-300">
-                    Active dataset: <span className="font-black text-cyan-100">{dataLabel}</span>
+                    Bars loaded: <span className="font-black text-cyan-100">{bars.length}</span>
+                    {dataSource === "csv" ? " from uploaded CSV" : ` for ${selectedTicker.yahooSymbol}`}
                   </div>
                   {uploadError ? <div className="text-sm text-rose-200">{uploadError}</div> : null}
                 </CardContent>
@@ -490,10 +656,16 @@ export function OrderFlowBacktester() {
                 <CardHeader>
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                     <div>
-                      <CardTitle>Visualization</CardTitle>
+                      <CardTitle>
+                        {activeTab === "price"
+                          ? `${tickerLabel} · Price + Delta`
+                          : activeTab === "cvd"
+                            ? `${tickerLabel} · CVD`
+                            : "Backtest Equity"}
+                      </CardTitle>
                       <p className="mt-1 text-sm text-zinc-400">
-                        CVD divergence means price makes a fresh extreme while cumulative delta fails
-                        to confirm the move.
+                        CVD divergence on <span className="font-black text-white">{tickerLabel}</span> means
+                        price makes a fresh extreme while cumulative delta fails to confirm the move.
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -512,10 +684,15 @@ export function OrderFlowBacktester() {
                 </CardHeader>
                 <CardContent>
                   <div className="rounded-3xl border border-white/10 bg-zinc-950/70 p-3">
-                    {activeTab === "price" ? (
-                      <PriceDeltaChart chartData={chartData} signals={signals} />
+                    {loading && !bars.length ? (
+                      <div className="flex min-h-[430px] items-center justify-center gap-3 text-sm text-zinc-400">
+                        <Loader2 className="h-5 w-5 animate-spin text-cyan-200" />
+                        Loading {selectedTicker.yahooSymbol} OHLCV...
+                      </div>
+                    ) : activeTab === "price" ? (
+                      <PriceDeltaChart chartData={chartData} signals={signals} tickerLabel={tickerLabel} />
                     ) : activeTab === "cvd" ? (
-                      <CvdChart chartData={chartData} />
+                      <CvdChart chartData={chartData} tickerLabel={tickerLabel} />
                     ) : (
                       <EquityChart result={result} />
                     )}
@@ -533,7 +710,7 @@ export function OrderFlowBacktester() {
                   <Button
                     type="button"
                     disabled={!signals.length}
-                    onClick={() => exportSignals(signals)}
+                    onClick={() => exportSignals(signals, tickerLabel)}
                     className="bg-emerald-400/15 text-emerald-100 hover:bg-emerald-400/25"
                   >
                     <Download className="h-4 w-4" />
@@ -546,6 +723,7 @@ export function OrderFlowBacktester() {
                   <table className="w-full min-w-[780px] text-left text-sm">
                     <thead className="bg-white/[0.05] text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">
                       <tr>
+                        <th className="px-4 py-3">Ticker</th>
                         <th className="px-4 py-3">Time</th>
                         <th className="px-4 py-3">Side</th>
                         <th className="px-4 py-3">Entry</th>
@@ -558,6 +736,7 @@ export function OrderFlowBacktester() {
                     <tbody className="divide-y divide-white/[0.05]">
                       {signals.slice(-8).reverse().map((signal) => (
                         <tr key={signal.id}>
+                          <td className="px-4 py-3 font-mono text-xs font-black text-cyan-100">{tickerLabel}</td>
                           <td className="px-4 py-3 font-mono text-xs text-zinc-400">{formatDate(signal.timestamp)}</td>
                           <td className="px-4 py-3">
                             <Badge tone={signal.direction === "long" ? "win" : "loss"}>{signal.direction}</Badge>
@@ -571,7 +750,7 @@ export function OrderFlowBacktester() {
                       ))}
                       {!signals.length ? (
                         <tr>
-                          <td colSpan={7} className="px-4 py-10 text-center text-zinc-500">
+                          <td colSpan={8} className="px-4 py-10 text-center text-zinc-500">
                             No setups with the current parameters.
                           </td>
                         </tr>
@@ -600,7 +779,25 @@ export function OrderFlowBacktester() {
                   <CardTitle>Detection Stats</CardTitle>
                 </CardHeader>
                 <CardContent className="grid gap-3">
-                  <MetricCard label="CVD divergences" value={String(divergenceCount)} tone="text-fuchsia-200" />
+                  <MetricCard
+                    label={`CVD divergences (${tickerLabel})`}
+                    value={String(divergenceBars.length)}
+                    tone="text-fuchsia-200"
+                  />
+                  {divergenceBars.slice(-4).reverse().map((bar) => (
+                    <div key={`${bar.timestamp}-${bar.deltaDivergence}`} className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="font-black text-white">{tickerLabel}</span>
+                        <Badge tone={bar.deltaDivergence === "bullish" ? "win" : "loss"}>
+                          {bar.deltaDivergence}
+                        </Badge>
+                      </div>
+                      <div className="mt-1 font-mono text-zinc-400">{formatDate(bar.timestamp)}</div>
+                    </div>
+                  ))}
+                  {!divergenceBars.length ? (
+                    <div className="text-sm text-zinc-500">No CVD divergences detected for {tickerLabel}.</div>
+                  ) : null}
                   <MetricCard
                     label="Avg bounce strength"
                     value={formatValue(enhancedBars.reduce((sum, bar) => sum + bar.bounceStrength, 0) / Math.max(enhancedBars.length, 1))}

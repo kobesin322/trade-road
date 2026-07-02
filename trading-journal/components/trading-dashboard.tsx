@@ -50,6 +50,7 @@ import { updateDemoTradesPreference } from "@/app/actions/preferences";
 import { signOut } from "@/app/actions/auth";
 import { MarketChartsView } from "@/components/charts/market-charts-view";
 import { LSPortfolioDashboard } from "@/components/ls-portfolio/ls-portfolio-dashboard";
+import { OrderFlowBacktester } from "@/components/tools/order-flow-backtester";
 import { DailyOverviewPanel } from "@/components/journal/daily-overview-panel";
 import { ScreenshotGallery } from "@/components/journal/screenshot-gallery";
 import { formatOverviewDayLabel } from "@/components/journal/overview-date-picker";
@@ -72,8 +73,13 @@ import type { DailyOverview } from "@/lib/daily-overview-types";
 import { buildOverviewsByDate, overviewHasContent } from "@/lib/daily-overview-utils";
 import { countMistakes } from "@/lib/trading-mistakes";
 
-const mainViews = ["Dashboard", "Journal", "Portfolio", "Charts", "Calendar"] as const;
+const mainViews = ["Dashboard", "Journal", "Portfolio", "Charts", "Strategy Lab", "Calendar"] as const;
 const toolLinks = [
+  {
+    href: "/?view=Strategy%20Lab",
+    title: "Strategy Lab",
+    description: "CVD bounce backtester",
+  },
   {
     href: "/tools/correlation",
     title: "Correlation Matrix",
@@ -525,7 +531,7 @@ export function TradingDashboard({
           </div>
         </header>
 
-        <nav className="grid grid-cols-2 gap-2 rounded-[1.5rem] border border-white/10 bg-black/30 p-2 backdrop-blur md:grid-cols-5">
+        <nav className="grid grid-cols-2 gap-2 rounded-[1.5rem] border border-white/10 bg-black/30 p-2 backdrop-blur md:grid-cols-3 lg:grid-cols-6">
           {mainViews.map((view) => (
             <button
               key={view}
@@ -550,7 +556,7 @@ export function TradingDashboard({
             <Gauge className="h-4 w-4" />
             Tools
           </div>
-          <div className="grid gap-2 md:grid-cols-2">
+          <div className="grid gap-2 md:grid-cols-3">
             {toolLinks.map((tool) => (
               <Link
                 key={tool.href}
@@ -636,6 +642,8 @@ export function TradingDashboard({
         )}
 
         {activeView === "Charts" && <MarketChartsView chartsReady={chartsReady} />}
+
+        {activeView === "Strategy Lab" && <OrderFlowBacktester />}
 
         {activeView === "Calendar" && (
           <CalendarView
