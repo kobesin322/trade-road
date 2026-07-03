@@ -15,7 +15,7 @@ function Card({ className, ...props }: React.ComponentProps<"div">) {
 }
 
 function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
-  return <div className={cn("p-5 pb-2", className)} {...props} />;
+  return <div className={cn("p-6 pb-3", className)} {...props} />;
 }
 
 function CardTitle({ className, ...props }: React.ComponentProps<"h3">) {
@@ -28,7 +28,7 @@ function CardTitle({ className, ...props }: React.ComponentProps<"h3">) {
 }
 
 function CardContent({ className, ...props }: React.ComponentProps<"div">) {
-  return <div className={cn("p-5 pt-3", className)} {...props} />;
+  return <div className={cn("p-6 pt-4", className)} {...props} />;
 }
 
 export { Card, CardContent, CardHeader, CardTitle };

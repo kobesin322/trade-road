@@ -17,9 +17,14 @@ import {
   CalendarDays,
   ChevronDown,
   Crosshair,
+  FlaskConical,
   Flame,
   Gauge,
+  LayoutDashboard,
+  LineChart,
   ListFilter,
+  LogOut,
+  Menu,
   Scale,
   Search,
   Sparkles,
@@ -27,7 +32,9 @@ import {
   Target,
   Trophy,
   WalletCards,
+  X,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type CSSProperties, useEffect, useMemo, useState, useTransition } from "react";
@@ -74,6 +81,7 @@ import { buildOverviewsByDate, overviewHasContent } from "@/lib/daily-overview-u
 import { countMistakes } from "@/lib/trading-mistakes";
 
 const mainViews = ["Dashboard", "Journal", "Portfolio", "Charts", "Strategy Lab", "Calendar"] as const;
+
 const toolLinks = [
   {
     href: "/?view=Strategy%20Lab",
@@ -109,6 +117,18 @@ function buildStrategyChartData(tradeList: Trade[]) {
 type MainView = (typeof mainViews)[number];
 type JournalTab = (typeof journalTabs)[number];
 type OutcomeFilter = "ALL" | TradeOutcome;
+
+const mainViewConfig: Record<
+  MainView,
+  { icon: LucideIcon; description: string }
+> = {
+  Dashboard: { icon: LayoutDashboard, description: "Performance at a glance" },
+  Journal: { icon: BookOpen, description: "Log and review every setup" },
+  Portfolio: { icon: WalletCards, description: "Long / short book tracking" },
+  Charts: { icon: LineChart, description: "Multi-timeframe market view" },
+  "Strategy Lab": { icon: FlaskConical, description: "CVD bounce backtester" },
+  Calendar: { icon: CalendarDays, description: "Trades, overviews, snapshots" },
+};
 
 const moneyFormatter = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 0,
@@ -230,6 +250,7 @@ export function TradingDashboard({
     format(new Date(), "yyyy-MM-dd"),
   );
   const [portfolioSnapshotDates, setPortfolioSnapshotDates] = useState<string[]>([]);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -370,6 +391,11 @@ export function TradingDashboard({
     });
   }
 
+  function navigateToView(view: MainView) {
+    setActiveView(view);
+    setMobileMenuOpen(false);
+  }
+
   function selectTrade(trade: Trade) {
     setSelectedTrade(trade);
 
@@ -379,48 +405,100 @@ export function TradingDashboard({
     }
   }
 
+  const ActiveViewIcon = mainViewConfig[activeView].icon;
+
   return (
-    <main className="min-h-screen overflow-hidden bg-[#05070d] text-white">
+    <main className="min-h-screen bg-[#05070d] text-white">
       <ConfettiBurst active={confetti} />
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.18),transparent_34%),radial-gradient(circle_at_80%_0%,rgba(250,204,21,0.12),transparent_28%),linear-gradient(180deg,rgba(15,23,42,0.72),rgba(3,7,18,0.95))]" />
-      <div className="relative mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-5 sm:px-6 lg:px-8">
-        <header className="flex flex-col gap-4 rounded-[2rem] border border-white/10 bg-white/[0.04] p-4 shadow-2xl shadow-black/40 backdrop-blur md:flex-row md:items-center md:justify-between">
-          <div>
-            <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.35em] text-cyan-200/80">
-              <Sparkles className="h-4 w-4" />
-              Level 26 journal quest
+
+      <div className="relative flex min-h-screen">
+        {/* Desktop sidebar */}
+        <aside className="sticky top-0 hidden h-screen w-72 shrink-0 flex-col border-r border-white/10 bg-black/20 backdrop-blur-xl lg:flex xl:w-80">
+          <div className="border-b border-white/10 px-7 py-8">
+            <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.32em] text-cyan-200/80">
+              <Sparkles className="h-3.5 w-3.5" />
+              Trade Road
             </div>
-            <h1 className="mt-3 text-3xl font-black tracking-tight text-white sm:text-5xl">
-              Trading Journal
-            </h1>
-            <p className="mt-2 max-w-2xl text-sm text-zinc-400 sm:text-base">
-              Stack clean entries, protect streaks, and turn every setup into scoreable feedback.
+            <h1 className="mt-3 text-2xl font-black tracking-tight text-white">Trading Journal</h1>
+            <p className="mt-2 text-sm leading-relaxed text-zinc-500">
+              Clean entries, protected streaks, scoreable feedback.
             </p>
           </div>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap sm:justify-end">
-            <div className="flex flex-col gap-2 text-right text-xs text-zinc-500 sm:text-left">
-              <span className="font-semibold text-zinc-300">{userEmail}</span>
-              <div className="flex flex-wrap items-center gap-2">
+
+          <nav aria-label="Main navigation" className="flex-1 space-y-8 overflow-y-auto px-5 py-8">
+            <div className="space-y-1.5">
+              <p className="px-3 text-[10px] font-black uppercase tracking-[0.24em] text-zinc-600">
+                Workspace
+              </p>
+              {mainViews.map((view) => {
+                const Icon = mainViewConfig[view].icon;
+                const isActive = activeView === view;
+                return (
+                  <button
+                    key={view}
+                    type="button"
+                    onClick={() => navigateToView(view)}
+                    className={cn(
+                      "flex w-full items-center gap-3 rounded-2xl px-4 py-3.5 text-left text-sm font-semibold transition-all duration-200",
+                      isActive
+                        ? "bg-cyan-300 text-slate-950 shadow-[0_0_24px_rgba(34,211,238,0.28)]"
+                        : "text-zinc-400 hover:bg-white/[0.06] hover:text-white",
+                    )}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    {view}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="space-y-3">
+              <p className="px-3 text-[10px] font-black uppercase tracking-[0.24em] text-zinc-600">
+                Tools
+              </p>
+              <div className="space-y-2">
+                {toolLinks.map((tool) => (
+                  <Link
+                    key={tool.href}
+                    href={tool.href}
+                    className="group flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3.5 transition hover:border-cyan-300/40 hover:bg-cyan-300/[0.07]"
+                  >
+                    <div className="min-w-0">
+                      <div className="text-sm font-bold text-white">{tool.title}</div>
+                      <div className="mt-0.5 truncate text-xs text-zinc-500">{tool.description}</div>
+                    </div>
+                    <ArrowUpRight className="h-4 w-4 shrink-0 text-cyan-200/70 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </nav>
+
+          <div className="space-y-4 border-t border-white/10 px-5 py-6">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4">
+              <p className="truncate text-sm font-semibold text-zinc-200">{userEmail}</p>
+              <div className="mt-2">
                 <Badge tone={demoTradesEnabled ? "gold" : "blue"}>
                   {demoTradesEnabled
                     ? "Demo preview"
-                    : `Personal journal · ${personalTrades.length} trades`}
+                    : `Personal · ${personalTrades.length} trades`}
                 </Badge>
               </div>
-              {seedMessage ? <span className="text-amber-200">{seedMessage}</span> : null}
+              {seedMessage ? <p className="mt-2 text-xs text-amber-200">{seedMessage}</p> : null}
             </div>
 
-            <div className="flex flex-col gap-1 rounded-2xl border border-white/10 bg-black/30 p-2">
+            <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
               <span className="px-1 text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">
                 Demo trades
               </span>
-              <div className="flex items-center gap-1">
+              <div className="mt-2 flex items-center gap-2">
                 <Button
                   type="button"
                   disabled={isPending}
                   onClick={() => handleDemoToggle(false)}
                   className={cn(
-                    "h-9 px-3 text-xs font-black",
+                    "h-9 flex-1 px-3 text-xs font-black",
                     !demoTradesEnabled
                       ? "bg-cyan-300 text-slate-950 hover:bg-cyan-200"
                       : "bg-white/5 text-zinc-300 hover:bg-white/10",
@@ -433,7 +511,7 @@ export function TradingDashboard({
                   disabled={isPending}
                   onClick={() => handleDemoToggle(true)}
                   className={cn(
-                    "h-9 px-3 text-xs font-black",
+                    "h-9 flex-1 px-3 text-xs font-black",
                     demoTradesEnabled
                       ? "bg-amber-300 text-slate-950 hover:bg-amber-200"
                       : "bg-white/5 text-zinc-300 hover:bg-white/10",
@@ -444,236 +522,311 @@ export function TradingDashboard({
               </div>
             </div>
 
-            {canUsePersonalJournal ? (
+            <div className="grid gap-2">
+              {canUsePersonalJournal ? (
+                <Button
+                  type="button"
+                  disabled={isPending || demoTradesEnabled}
+                  onClick={() => {
+                    setSeedMessage(null);
+                    startTransition(async () => {
+                      const result = await seedSampleTrades();
+                      setSeedMessage(result.message);
+                      if (result.ok) {
+                        router.refresh();
+                      }
+                    });
+                  }}
+                  className="w-full justify-center bg-white/5 text-xs text-zinc-100"
+                >
+                  Import demo
+                </Button>
+              ) : null}
               <Button
                 type="button"
-                disabled={isPending || demoTradesEnabled}
+                disabled={!canUsePersonalJournal || demoTradesEnabled || !personalTrades.length}
                 onClick={() => {
-                  setSeedMessage(null);
                   startTransition(async () => {
-                    const result = await seedSampleTrades();
-                    setSeedMessage(result.message);
-                    if (result.ok) {
-                      router.refresh();
-                    }
+                    const csv = await buildTradesCsv();
+                    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+                    const url = URL.createObjectURL(blob);
+                    const anchor = document.createElement("a");
+                    anchor.href = url;
+                    anchor.download = "traderoad-trades.csv";
+                    anchor.click();
+                    URL.revokeObjectURL(url);
                   });
                 }}
-                className="justify-between bg-white/5 text-zinc-100"
+                className="w-full justify-center bg-white/5 text-xs text-zinc-100"
               >
-                Import demo to journal
+                Export CSV
               </Button>
-            ) : null}
-            <Button
-              type="button"
-              disabled={!canUsePersonalJournal || demoTradesEnabled || !personalTrades.length}
-              onClick={() => {
-                startTransition(async () => {
-                  const csv = await buildTradesCsv();
-                  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-                  const url = URL.createObjectURL(blob);
-                  const anchor = document.createElement("a");
-                  anchor.href = url;
-                  anchor.download = "traderoad-trades.csv";
-                  anchor.click();
-                  URL.revokeObjectURL(url);
-                });
-              }}
-              className="justify-between bg-white/5 text-zinc-100"
-            >
-              Export personal CSV
-            </Button>
-            <div className="relative">
-              <Button
-                type="button"
-                onClick={() => setActiveView("Calendar")}
-                className="relative justify-between bg-cyan-300/10 text-cyan-100"
-              >
-                {calendarLabel}
-                <ChevronDown className="h-4 w-4" />
-              </Button>
-              <input
-                type="month"
-                value={format(calendarMonth, "yyyy-MM")}
-                onChange={(event) => {
-                  const [year, month] = event.target.value.split("-").map(Number);
-                  if (!year || !month) {
-                    return;
-                  }
-                  const nextMonth = startOfMonth(new Date(year, month - 1, 1));
-                  setCalendarMonth(nextMonth);
-                  setSelectedCalendarDate(format(nextMonth, "yyyy-MM-dd"));
-                  setActiveView("Calendar");
-                }}
-                className="absolute inset-0 cursor-pointer opacity-0"
-                aria-label="Select calendar month"
-              />
+              <form action={signOut}>
+                <Button
+                  type="submit"
+                  className="w-full justify-center bg-rose-500/10 text-xs text-rose-100 hover:bg-rose-500/20"
+                >
+                  <LogOut className="h-3.5 w-3.5" />
+                  Sign out
+                </Button>
+              </form>
             </div>
-            <Button
-              type="button"
-              disabled={!bestWin}
-              onClick={() => {
-                if (!bestWin) {
-                  return;
-                }
-                setActiveView("Charts");
-                selectTrade(bestWin);
-              }}
-              className="bg-gradient-to-r from-yellow-400 to-amber-500 text-black hover:bg-yellow-300 disabled:opacity-40"
-            >
-              <Trophy className="h-4 w-4" />
-              Replay best win
-            </Button>
-            <form action={signOut}>
-              <Button type="submit" className="w-full bg-rose-500/15 text-rose-100 hover:bg-rose-500/25">
-                Sign out
-              </Button>
-            </form>
           </div>
-        </header>
+        </aside>
 
-        <nav className="grid grid-cols-2 gap-2 rounded-[1.5rem] border border-white/10 bg-black/30 p-2 backdrop-blur md:grid-cols-3 lg:grid-cols-6">
-          {mainViews.map((view) => (
+        {/* Mobile drawer */}
+        {mobileMenuOpen ? (
+          <div className="fixed inset-0 z-40 lg:hidden">
             <button
-              key={view}
               type="button"
-              onClick={() => setActiveView(view)}
-              className={cn(
-                "rounded-2xl px-3 py-3 text-sm font-bold text-zinc-400 transition-all hover:bg-white/10 hover:text-white",
-                activeView === view &&
-                  "bg-cyan-300 text-slate-950 shadow-[0_0_22px_rgba(34,211,238,0.35)]",
-              )}
-            >
-              {view}
-            </button>
-          ))}
-        </nav>
-
-        <nav
-          aria-label="Trading tools"
-          className="grid gap-3 rounded-[1.5rem] border border-cyan-300/15 bg-cyan-300/[0.05] p-3 backdrop-blur lg:grid-cols-[auto_1fr]"
-        >
-          <div className="flex items-center gap-2 px-2 text-xs font-black uppercase tracking-[0.28em] text-cyan-200">
-            <Gauge className="h-4 w-4" />
-            Tools
-          </div>
-          <div className="grid gap-2 md:grid-cols-3">
-            {toolLinks.map((tool) => (
-              <Link
-                key={tool.href}
-                href={tool.href}
-                className="group rounded-2xl border border-white/10 bg-black/25 px-4 py-3 transition hover:-translate-y-0.5 hover:border-cyan-300/50 hover:bg-cyan-300/10"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-black text-white">{tool.title}</div>
-                    <div className="mt-1 text-xs font-semibold text-zinc-500">
-                      {tool.description}
-                    </div>
-                  </div>
-                  <ArrowUpRight className="h-4 w-4 text-cyan-200 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+              aria-label="Close menu"
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() => setMobileMenuOpen(false)}
+            />
+            <aside className="absolute inset-y-0 left-0 flex w-[min(88vw,20rem)] flex-col border-r border-white/10 bg-[#070b14]/95 backdrop-blur-xl">
+              <div className="flex items-center justify-between border-b border-white/10 px-5 py-5">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.24em] text-cyan-200/80">
+                    Trade Road
+                  </p>
+                  <p className="mt-1 text-lg font-black">Menu</p>
                 </div>
-              </Link>
-            ))}
+                <button
+                  type="button"
+                  aria-label="Close menu"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="rounded-full border border-white/10 p-2 text-zinc-400 hover:bg-white/10 hover:text-white"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <nav className="flex-1 space-y-1 overflow-y-auto p-4">
+                {mainViews.map((view) => {
+                  const Icon = mainViewConfig[view].icon;
+                  const isActive = activeView === view;
+                  return (
+                    <button
+                      key={view}
+                      type="button"
+                      onClick={() => navigateToView(view)}
+                      className={cn(
+                        "flex w-full items-center gap-3 rounded-2xl px-4 py-3.5 text-left text-sm font-semibold transition",
+                        isActive
+                          ? "bg-cyan-300 text-slate-950"
+                          : "text-zinc-400 hover:bg-white/[0.06] hover:text-white",
+                      )}
+                    >
+                      <Icon className="h-4 w-4" />
+                      {view}
+                    </button>
+                  );
+                })}
+              </nav>
+            </aside>
           </div>
-        </nav>
+        ) : null}
 
-        {activeView === "Dashboard" && (
-          <DashboardView
-            bestWin={bestWin}
-            calendarLabel={calendarLabel}
-            chartsReady={chartsReady}
-            dailyProfit={dailyProfit}
-            demoTradesEnabled={demoTradesEnabled}
-            maxDailyAbs={maxDailyAbs}
-            setActiveView={setActiveView}
-            stats={stats}
-            strategyChartData={strategyChartData}
-          />
-        )}
+        {/* Main content */}
+        <div className="flex min-w-0 flex-1 flex-col">
+          <header className="sticky top-0 z-30 border-b border-white/10 bg-[#05070d]/80 px-4 py-5 backdrop-blur-xl sm:px-6 lg:px-10 lg:py-7">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex items-start gap-4">
+                <button
+                  type="button"
+                  aria-label="Open menu"
+                  onClick={() => setMobileMenuOpen(true)}
+                  className="mt-0.5 rounded-2xl border border-white/10 p-2.5 text-zinc-400 transition hover:bg-white/10 hover:text-white lg:hidden"
+                >
+                  <Menu className="h-5 w-5" />
+                </button>
+                <div>
+                  <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.24em] text-cyan-200/70">
+                    <ActiveViewIcon className="h-3.5 w-3.5" />
+                    {activeView}
+                  </div>
+                  <h2 className="mt-2 text-2xl font-black tracking-tight text-white sm:text-3xl">
+                    {activeView}
+                  </h2>
+                  <p className="mt-1.5 max-w-xl text-sm leading-relaxed text-zinc-500">
+                    {mainViewConfig[activeView].description}
+                  </p>
+                </div>
+              </div>
 
-        {activeView === "Journal" && (
-          <JournalView
-            canUsePersonalJournal={canUsePersonalJournal}
-            chartsReady={chartsReady}
-            demoTradesEnabled={demoTradesEnabled}
-            filteredTrades={filteredTrades}
-            journalEditorMode={journalEditorMode}
-            journalSection={journalSection}
-            journalTab={journalTab}
-            outcomeFilter={outcomeFilter}
-            personalDailyOverviews={personalDailyOverviews}
-            personalTrades={personalTrades}
-            query={query}
-            selectedCalendarDate={selectedCalendarDate}
-            selectedTrade={selectedTrade}
-            setJournalEditorMode={setJournalEditorMode}
-            setJournalSection={setJournalSection}
-            setJournalTab={setJournalTab}
-            setSelectedCalendarDate={setSelectedCalendarDate}
-            setOutcomeFilter={setOutcomeFilter}
-            setQuery={setQuery}
-            setStrategyFilter={setStrategyFilter}
-            stats={stats}
-            strategyFilter={strategyFilter}
-            strategySummary={strategySummary}
-            trades={trades}
-            onJournalDeleted={() => {
-              setJournalEditorMode("closed");
-              setSelectedTrade(null);
-              router.refresh();
-            }}
-            onJournalSaved={(trade) => {
-              setJournalEditorMode("closed");
-              selectTrade(trade);
-              router.refresh();
-            }}
-            onSelectTrade={selectTrade}
-            onDailyOverviewSaved={() => router.refresh()}
-          />
-        )}
+              <div className="flex flex-wrap items-center gap-3 lg:justify-end">
+                <div className="relative">
+                  <Button
+                    type="button"
+                    onClick={() => setActiveView("Calendar")}
+                    className="bg-white/[0.05] text-zinc-100"
+                  >
+                    <CalendarDays className="h-4 w-4" />
+                    {calendarLabel}
+                    <ChevronDown className="h-4 w-4 opacity-60" />
+                  </Button>
+                  <input
+                    type="month"
+                    value={format(calendarMonth, "yyyy-MM")}
+                    onChange={(event) => {
+                      const [year, month] = event.target.value.split("-").map(Number);
+                      if (!year || !month) {
+                        return;
+                      }
+                      const nextMonth = startOfMonth(new Date(year, month - 1, 1));
+                      setCalendarMonth(nextMonth);
+                      setSelectedCalendarDate(format(nextMonth, "yyyy-MM-dd"));
+                      setActiveView("Calendar");
+                    }}
+                    className="absolute inset-0 cursor-pointer opacity-0"
+                    aria-label="Select calendar month"
+                  />
+                </div>
+                <Button
+                  type="button"
+                  disabled={!bestWin}
+                  onClick={() => {
+                    if (!bestWin) {
+                      return;
+                    }
+                    setActiveView("Charts");
+                    selectTrade(bestWin);
+                  }}
+                  className="bg-gradient-to-r from-yellow-400 to-amber-500 text-black hover:from-yellow-300 hover:to-amber-400 disabled:opacity-40"
+                >
+                  <Trophy className="h-4 w-4" />
+                  Best win
+                </Button>
+              </div>
+            </div>
 
-        {activeView === "Portfolio" && (
-          <LSPortfolioDashboard
-            selectedDate={selectedCalendarDate}
-            onDateChange={setSelectedCalendarDate}
-            canUsePersonalJournal={canUsePersonalJournal}
-            onSnapshotDatesChange={setPortfolioSnapshotDates}
-          />
-        )}
+            {/* Mobile horizontal nav */}
+            <nav
+              aria-label="Quick navigation"
+              className="mt-5 flex gap-2 overflow-x-auto pb-1 lg:hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            >
+              {mainViews.map((view) => {
+                const Icon = mainViewConfig[view].icon;
+                const isActive = activeView === view;
+                return (
+                  <button
+                    key={view}
+                    type="button"
+                    onClick={() => navigateToView(view)}
+                    className={cn(
+                      "inline-flex shrink-0 items-center gap-2 rounded-full border px-4 py-2.5 text-xs font-bold transition",
+                      isActive
+                        ? "border-cyan-300/50 bg-cyan-300 text-slate-950"
+                        : "border-white/10 bg-white/[0.04] text-zinc-400 hover:text-white",
+                    )}
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                    {view}
+                  </button>
+                );
+              })}
+            </nav>
+          </header>
 
-        {activeView === "Charts" && <MarketChartsView chartsReady={chartsReady} />}
+          <div className="flex-1 space-y-12 px-4 py-8 sm:px-6 sm:py-10 lg:px-10 lg:py-12">
+            {activeView === "Dashboard" && (
+              <DashboardView
+                bestWin={bestWin}
+                calendarLabel={calendarLabel}
+                chartsReady={chartsReady}
+                dailyProfit={dailyProfit}
+                demoTradesEnabled={demoTradesEnabled}
+                maxDailyAbs={maxDailyAbs}
+                setActiveView={setActiveView}
+                stats={stats}
+                strategyChartData={strategyChartData}
+              />
+            )}
 
-        {activeView === "Strategy Lab" && <OrderFlowBacktester />}
+            {activeView === "Journal" && (
+              <JournalView
+                canUsePersonalJournal={canUsePersonalJournal}
+                chartsReady={chartsReady}
+                demoTradesEnabled={demoTradesEnabled}
+                filteredTrades={filteredTrades}
+                journalEditorMode={journalEditorMode}
+                journalSection={journalSection}
+                journalTab={journalTab}
+                outcomeFilter={outcomeFilter}
+                personalDailyOverviews={personalDailyOverviews}
+                personalTrades={personalTrades}
+                query={query}
+                selectedCalendarDate={selectedCalendarDate}
+                selectedTrade={selectedTrade}
+                setJournalEditorMode={setJournalEditorMode}
+                setJournalSection={setJournalSection}
+                setJournalTab={setJournalTab}
+                setSelectedCalendarDate={setSelectedCalendarDate}
+                setOutcomeFilter={setOutcomeFilter}
+                setQuery={setQuery}
+                setStrategyFilter={setStrategyFilter}
+                stats={stats}
+                strategyFilter={strategyFilter}
+                strategySummary={strategySummary}
+                trades={trades}
+                onJournalDeleted={() => {
+                  setJournalEditorMode("closed");
+                  setSelectedTrade(null);
+                  router.refresh();
+                }}
+                onJournalSaved={(trade) => {
+                  setJournalEditorMode("closed");
+                  selectTrade(trade);
+                  router.refresh();
+                }}
+                onSelectTrade={selectTrade}
+                onDailyOverviewSaved={() => router.refresh()}
+              />
+            )}
 
-        {activeView === "Calendar" && (
-          <CalendarView
-            calendarDays={calendarDays}
-            calendarLabel={calendarLabel}
-            calendarMonth={calendarMonth}
-            calendarOffset={calendarOffset}
-            canUsePersonalJournal={canUsePersonalJournal}
-            demoTradesEnabled={demoTradesEnabled}
-            overviewsByDate={overviewsByDate}
-            portfolioSnapshotDates={portfolioSnapshotDates}
-            selectedCalendarDate={selectedCalendarDate}
-            selectedDayOverview={selectedDayOverview}
-            selectedDayTrades={selectedDayTrades}
-            setCalendarMonth={setCalendarMonth}
-            setSelectedCalendarDate={setSelectedCalendarDate}
-            tradeCount={trades.length}
-            tradesByDate={tradesByDate}
-            onOpenDailyOverview={() => {
-              setJournalSection("daily-overview");
-              setActiveView("Journal");
-            }}
-            onOpenPortfolioSnapshot={() => setActiveView("Portfolio")}
-            onSelectTrade={(trade) => {
-              selectTrade(trade);
-              setJournalSection("trades");
-              setActiveView("Journal");
-            }}
-          />
-        )}
+            {activeView === "Portfolio" && (
+              <LSPortfolioDashboard
+                selectedDate={selectedCalendarDate}
+                onDateChange={setSelectedCalendarDate}
+                canUsePersonalJournal={canUsePersonalJournal}
+                onSnapshotDatesChange={setPortfolioSnapshotDates}
+              />
+            )}
+
+            {activeView === "Charts" && <MarketChartsView chartsReady={chartsReady} />}
+
+            {activeView === "Strategy Lab" && <OrderFlowBacktester />}
+
+            {activeView === "Calendar" && (
+              <CalendarView
+                calendarDays={calendarDays}
+                calendarLabel={calendarLabel}
+                calendarMonth={calendarMonth}
+                calendarOffset={calendarOffset}
+                canUsePersonalJournal={canUsePersonalJournal}
+                demoTradesEnabled={demoTradesEnabled}
+                overviewsByDate={overviewsByDate}
+                portfolioSnapshotDates={portfolioSnapshotDates}
+                selectedCalendarDate={selectedCalendarDate}
+                selectedDayOverview={selectedDayOverview}
+                selectedDayTrades={selectedDayTrades}
+                setCalendarMonth={setCalendarMonth}
+                setSelectedCalendarDate={setSelectedCalendarDate}
+                tradeCount={trades.length}
+                tradesByDate={tradesByDate}
+                onOpenDailyOverview={() => {
+                  setJournalSection("daily-overview");
+                  setActiveView("Journal");
+                }}
+                onOpenPortfolioSnapshot={() => setActiveView("Portfolio")}
+                onSelectTrade={(trade) => {
+                  selectTrade(trade);
+                  setJournalSection("trades");
+                  setActiveView("Journal");
+                }}
+              />
+            )}
+          </div>
+        </div>
       </div>
     </main>
   );
@@ -732,96 +885,63 @@ function DashboardView({
   ];
 
   return (
-    <section className="grid gap-6">
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {metricCards.map((metric) => (
-          <Card
-            key={metric.title}
-            className={cn(
-              "group overflow-hidden bg-gradient-to-br transition hover:-translate-y-1 hover:border-cyan-300/40",
-              metric.tone,
-            )}
-          >
-            <CardContent className="relative">
-              <div className="absolute right-4 top-4 rounded-2xl border border-white/10 bg-black/25 p-3 text-cyan-100">
-                <metric.icon className="h-5 w-5" />
-              </div>
-              <div className="text-sm font-semibold uppercase tracking-[0.22em] text-zinc-400">
-                {metric.title}
-              </div>
-              <div className="mt-4 flex items-end gap-2">
-                <span className="text-4xl font-black">{metric.value}</span>
-                {metric.title === "Total Profit" && (
-                  <span className="pb-2 text-emerald-300">▲</span>
-                )}
-              </div>
-              <p className="mt-2 text-sm text-zinc-400">{metric.helper}</p>
-            </CardContent>
-          </Card>
-        ))}
+    <section className="space-y-12">
+      {/* KPI strip */}
+      <div className="space-y-5">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-zinc-600">
+            Overview
+          </p>
+          <h3 className="mt-2 text-lg font-bold text-zinc-200">{calendarLabel} snapshot</h3>
+        </div>
+        <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+          {metricCards.map((metric) => (
+            <Card
+              key={metric.title}
+              className={cn(
+                "overflow-hidden bg-gradient-to-br transition duration-200 hover:border-cyan-300/30",
+                metric.tone,
+              )}
+            >
+              <CardContent className="relative p-7">
+                <div className="absolute right-5 top-5 rounded-2xl border border-white/10 bg-black/25 p-3 text-cyan-100">
+                  <metric.icon className="h-5 w-5" />
+                </div>
+                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500">
+                  {metric.title}
+                </div>
+                <div className="mt-6 flex items-end gap-2">
+                  <span className="text-3xl font-black tracking-tight sm:text-4xl">{metric.value}</span>
+                  {metric.title === "Total Profit" && (
+                    <span className="pb-1.5 text-emerald-300">▲</span>
+                  )}
+                </div>
+                <p className="mt-3 text-sm leading-relaxed text-zinc-500">{metric.helper}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[0.9fr_1.4fr]">
+      {/* Primary chart — daily P&L */}
+      <div className="space-y-5">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-zinc-600">
+            Daily performance
+          </p>
+          <h3 className="mt-2 text-lg font-bold text-zinc-200">Profit per day</h3>
+        </div>
         <Card className="overflow-hidden">
-          <CardHeader>
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <CardTitle>Win by Strategy</CardTitle>
-                <p className="mt-1 text-sm text-zinc-400">
-                  Power-ups ranked by captured profit.
-                </p>
-              </div>
-              <Badge tone="blue">Boss chart</Badge>
+          <CardHeader className="px-7 pt-7">
+            <div className="flex items-center justify-between gap-4">
+              <p className="text-sm leading-relaxed text-zinc-500">
+                Daily profit heatmap for {calendarLabel}.
+              </p>
+              <Badge tone="gold">{dailyProfit.length} days</Badge>
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="h-80">
-              {chartsReady ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={strategyChartData} margin={{ left: -24, right: 12, top: 20 }}>
-                    <CartesianGrid stroke="rgba(255,255,255,0.07)" vertical={false} />
-                    <XAxis dataKey="name" tick={{ fill: "#a1a1aa", fontSize: 12 }} tickLine={false} />
-                    <YAxis tick={{ fill: "#71717a", fontSize: 12 }} tickLine={false} axisLine={false} />
-                    <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
-                    <Bar dataKey="profit" radius={[16, 16, 6, 6]} barSize={58}>
-                      {strategyChartData.map((entry) => (
-                        <Cell key={entry.name} fill={entry.fill} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <ChartPlaceholder label="Loading strategy chart" />
-              )}
-            </div>
-            <div className="mt-4 grid gap-3">
-              {strategyChartData.map((strategy) => (
-                <div key={strategy.name} className="flex items-center justify-between rounded-2xl bg-white/[0.04] px-4 py-3">
-                  <div className="flex items-center gap-3">
-                    <span className="h-3 w-3 rounded-full" style={{ background: strategy.fill }} />
-                    <span className="font-semibold">{strategy.name}</span>
-                  </div>
-                  <span className="font-black text-white">${strategy.profit}</span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="overflow-hidden">
-          <CardHeader>
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <CardTitle>Profit per Day</CardTitle>
-                <p className="mt-1 text-sm text-zinc-400">
-                  Daily profit heatmap for {calendarLabel}.
-                </p>
-              </div>
-              <Badge tone="gold">31 days</Badge>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[760px]">
+          <CardContent className="px-7 pb-8">
+            <div className="h-[min(520px,60vh)] min-h-72">
               {chartsReady ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
@@ -871,32 +991,95 @@ function DashboardView({
         </Card>
       </div>
 
-      <Card className="overflow-hidden border-emerald-300/20 bg-gradient-to-r from-emerald-400/15 via-cyan-400/10 to-yellow-300/10">
-        <CardContent className="grid gap-6 md:grid-cols-[1fr_auto] md:items-center">
-          <div>
-            <Badge tone="win">Monthly clear</Badge>
-            <h2 className="mt-4 text-3xl font-black tracking-tight sm:text-4xl">
-              ${moneyFormatter.format(stats.totalProfit)} total profit
-            </h2>
-            <p className="mt-2 max-w-2xl text-zinc-300">
-              {bestWin ? (
-                <>
-                  Best loot drop: {bestWin.pair} on {format(parseISO(bestWin.date), "MMM d")} for{" "}
-                  {formatMoney(bestWin.profitAmount)}. Keep farming the clean A+ setups.
-                </>
-              ) : demoTradesEnabled ? (
-                <>Turn demo trades off to view your personal journal, or import the demo pack into your account.</>
-              ) : (
-                <>No personal trades yet. Use POST /api/trades or import the demo pack into your journal.</>
-              )}
-            </p>
-          </div>
-          <Button onClick={() => setActiveView("Journal")} className="bg-white text-slate-950 hover:bg-cyan-100">
-            <ListFilter className="h-4 w-4" />
-            Open journal
-          </Button>
-        </CardContent>
-      </Card>
+      {/* Secondary insights */}
+      <div className="space-y-5">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-zinc-600">
+            Strategy breakdown
+          </p>
+          <h3 className="mt-2 text-lg font-bold text-zinc-200">Where edge comes from</h3>
+        </div>
+        <div className="grid gap-8 xl:grid-cols-[1fr_1.1fr]">
+          <Card className="overflow-hidden">
+            <CardHeader className="px-7 pt-7">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <CardTitle>Win by strategy</CardTitle>
+                  <p className="mt-2 text-sm leading-relaxed text-zinc-500">
+                    Setups ranked by captured profit.
+                  </p>
+                </div>
+                <Badge tone="blue">Chart</Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6 px-7 pb-8">
+              <div className="h-72">
+                {chartsReady ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={strategyChartData} margin={{ left: -24, right: 12, top: 12 }}>
+                      <CartesianGrid stroke="rgba(255,255,255,0.07)" vertical={false} />
+                      <XAxis dataKey="name" tick={{ fill: "#a1a1aa", fontSize: 12 }} tickLine={false} />
+                      <YAxis tick={{ fill: "#71717a", fontSize: 12 }} tickLine={false} axisLine={false} />
+                      <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
+                      <Bar dataKey="profit" radius={[16, 16, 6, 6]} barSize={48}>
+                        {strategyChartData.map((entry) => (
+                          <Cell key={entry.name} fill={entry.fill} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <ChartPlaceholder label="Loading strategy chart" />
+                )}
+              </div>
+              <div className="grid gap-3">
+                {strategyChartData.map((strategy) => (
+                  <div
+                    key={strategy.name}
+                    className="flex items-center justify-between rounded-2xl bg-white/[0.04] px-5 py-4"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="h-3 w-3 rounded-full" style={{ background: strategy.fill }} />
+                      <span className="font-semibold">{strategy.name}</span>
+                    </div>
+                    <span className="font-black text-white">${strategy.profit}</span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="overflow-hidden border-emerald-300/20 bg-gradient-to-br from-emerald-400/10 via-cyan-400/[0.06] to-transparent">
+            <CardContent className="flex h-full flex-col justify-between gap-8 p-8">
+              <div>
+                <Badge tone="win">Monthly summary</Badge>
+                <h2 className="mt-6 text-3xl font-black tracking-tight sm:text-4xl">
+                  ${moneyFormatter.format(stats.totalProfit)}
+                </h2>
+                <p className="mt-4 max-w-md text-sm leading-relaxed text-zinc-400">
+                  {bestWin ? (
+                    <>
+                      Best trade: {bestWin.pair} on {format(parseISO(bestWin.date), "MMM d")} for{" "}
+                      {formatMoney(bestWin.profitAmount)}. Keep farming the clean A+ setups.
+                    </>
+                  ) : demoTradesEnabled ? (
+                    <>Turn demo trades off to view your personal journal, or import the demo pack.</>
+                  ) : (
+                    <>No personal trades yet. Import the demo pack or log your first entry.</>
+                  )}
+                </p>
+              </div>
+              <Button
+                onClick={() => setActiveView("Journal")}
+                className="w-full bg-white text-slate-950 hover:bg-cyan-100 sm:w-auto"
+              >
+                <ListFilter className="h-4 w-4" />
+                Open journal
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </section>
   );
 }
@@ -968,8 +1151,8 @@ function JournalView({
 }) {
   if (journalSection === "daily-overview") {
     return (
-      <section className="grid gap-4">
-        <div className="flex flex-wrap gap-2">
+      <section className="space-y-8">
+        <div className="flex flex-wrap gap-3">
           {(
             [
               { id: "trades" as const, label: "Trades" },
@@ -1003,8 +1186,8 @@ function JournalView({
   }
 
   return (
-    <section className="grid gap-4">
-      <div className="flex flex-wrap gap-2">
+    <section className="space-y-8">
+      <div className="flex flex-wrap gap-3">
         {(
           [
             { id: "trades" as const, label: "Trades" },
@@ -1024,7 +1207,7 @@ function JournalView({
           </button>
         ))}
       </div>
-      <div className="grid gap-6 xl:grid-cols-[1.45fr_0.75fr]">
+      <div className="grid gap-8 xl:grid-cols-[1.45fr_0.75fr] xl:gap-10">
       <Card className="overflow-hidden">
         <CardHeader>
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -1435,7 +1618,7 @@ function CalendarView({
   }
 
   return (
-    <section className="grid gap-6">
+    <section className="space-y-10">
       <Card className="overflow-hidden">
         <CardHeader>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1614,7 +1797,7 @@ function CalendarView({
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid gap-6 lg:grid-cols-3 lg:gap-8">
         <Card className="border-amber-300/25 bg-gradient-to-br from-amber-500/10 to-transparent">
           <CardContent className="grid gap-3 pt-6">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
