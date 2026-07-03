@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { TradingViewMultiTimeframe } from "@/components/charts/trading-view-multi-timeframe";
+import { BouncyBallStrategyChart } from "@/components/charts/bouncy-ball-strategy-chart";
 import type { MarketOHLCVPayload } from "@/lib/market-data/yahoo-chart";
 import {
   CRYPTO_WATCHLIST,
@@ -45,11 +46,12 @@ import { cn } from "@/lib/utils";
 
 const DEFAULT_TICKER_ID = CRYPTO_WATCHLIST[0].id;
 
-type ChartTab = "price" | "cvd" | "equity" | "tradingview";
+type ChartTab = "price" | "cvd" | "bouncyball" | "tradingview" | "equity";
 
 const chartTabs: Array<{ id: ChartTab; label: string }> = [
   { id: "price", label: "Price + Delta" },
   { id: "cvd", label: "CVD" },
+  { id: "bouncyball", label: "Bouncy Ball" },
   { id: "tradingview", label: "TradingView MTF" },
   { id: "equity", label: "Equity" },
 ];
@@ -669,15 +671,24 @@ export function OrderFlowBacktester() {
                           ? `${tickerLabel} · Price + Delta`
                           : activeTab === "cvd"
                             ? `${tickerLabel} · CVD`
-                            : activeTab === "tradingview"
-                              ? `${tickerLabel} · Multi-Timeframe TradingView`
-                              : "Backtest Equity"}
+                            : activeTab === "bouncyball"
+                              ? `${tickerLabel} · Bouncy Ball Strategy`
+                              : activeTab === "tradingview"
+                                ? `${tickerLabel} · Multi-Timeframe TradingView`
+                                : "Backtest Equity"}
                       </CardTitle>
                       <p className="mt-1 text-sm text-zinc-400">
-                        {activeTab === "tradingview" ? (
+                        {activeTab === "bouncyball" ? (
+                          <>
+                            Candlestick overlay for <span className="font-black text-white">{tickerLabel}</span> with
+                            bounce touches, CVD divergences, entries, and SL/TP from your strategy engine.
+                          </>
+                        ) : activeTab === "tradingview" ? (
                           <>
                             Compare <span className="font-black text-white">{tickerLabel}</span> across 5m, 15m,
-                            1H, 4H, and daily before validating bounce + CVD setups.
+                            1H, 4H, and daily. Strategy markers live on the{" "}
+                            <span className="font-black text-white">Bouncy Ball</span> tab — the free TradingView
+                            embed cannot draw custom signals.
                           </>
                         ) : (
                           <>
@@ -708,6 +719,8 @@ export function OrderFlowBacktester() {
                         symbol={selectedTicker.tradingViewSymbol}
                         tickerLabel={tickerLabel}
                       />
+                    ) : activeTab === "bouncyball" ? (
+                      <BouncyBallStrategyChart bars={enhancedBars} signals={signals} tickerLabel={tickerLabel} />
                     ) : loading && !bars.length ? (
                       <div className="flex min-h-[430px] items-center justify-center gap-3 text-sm text-zinc-400">
                         <Loader2 className="h-5 w-5 animate-spin text-cyan-200" />
