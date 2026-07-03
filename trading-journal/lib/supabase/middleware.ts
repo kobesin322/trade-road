@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { ADMIN_SESSION_COOKIE, isAdminSessionCookie } from "@/lib/auth";
+import { fetchWithTimeout } from "@/lib/supabase/fetch-with-timeout";
 
 function hasSupabaseAuthCookies(request: NextRequest) {
   return request.cookies.getAll().some(
@@ -64,6 +65,9 @@ export async function updateSession(request: NextRequest) {
   });
 
   const supabase = createServerClient(supabaseUrl, supabaseKey, {
+    global: {
+      fetch: fetchWithTimeout,
+    },
     cookies: {
       getAll() {
         return request.cookies.getAll();
