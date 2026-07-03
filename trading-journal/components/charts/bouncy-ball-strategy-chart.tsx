@@ -277,7 +277,7 @@ export function BouncyBallStrategyChart({
 
   if (!bars.length) {
     return (
-      <div className="flex min-h-[480px] items-center justify-center text-sm text-zinc-500">
+      <div className="flex min-h-[560px] items-center justify-center text-sm text-zinc-500">
         Load ticker data to visualize the Bouncy Ball strategy.
       </div>
     );
@@ -299,7 +299,7 @@ export function BouncyBallStrategyChart({
           <LegendItem color="#4ade80" label="Take profit" />
         </div>
       </div>
-      <div ref={containerRef} className="h-[480px] w-full overflow-hidden rounded-2xl" />
+      <div ref={containerRef} className="h-[560px] w-full overflow-hidden rounded-2xl" />
       <p className="mt-3 text-xs text-zinc-500">
         TradingView&apos;s free embed cannot draw custom strategy markers. This chart uses TradingView
         Lightweight Charts with your computed bounce touches, CVD divergences, entries, and SL/TP levels

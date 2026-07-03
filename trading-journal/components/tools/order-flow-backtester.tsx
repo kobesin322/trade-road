@@ -291,7 +291,7 @@ function PriceDeltaChart({
   tickerLabel: string;
 }) {
   return (
-    <ResponsiveContainer width="100%" height={430}>
+    <ResponsiveContainer width="100%" height={560}>
       <ComposedChart data={chartData}>
         <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
         <XAxis dataKey="time" tick={{ fill: "#71717a", fontSize: 11 }} minTickGap={28} />
@@ -318,7 +318,7 @@ function PriceDeltaChart({
 
 function CvdChart({ chartData, tickerLabel }: { chartData: ChartRow[]; tickerLabel: string }) {
   return (
-    <ResponsiveContainer width="100%" height={430}>
+    <ResponsiveContainer width="100%" height={560}>
       <LineChart data={chartData}>
         <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
         <XAxis dataKey="time" tick={{ fill: "#71717a", fontSize: 11 }} minTickGap={28} />
@@ -342,7 +342,7 @@ function EquityChart({ result }: { result: BacktestResult }) {
   }));
 
   return (
-    <ResponsiveContainer width="100%" height={430}>
+    <ResponsiveContainer width="100%" height={560}>
       <ComposedChart data={equityData}>
         <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
         <XAxis dataKey="time" tick={{ fill: "#71717a", fontSize: 11 }} minTickGap={28} />
@@ -615,8 +615,8 @@ export function OrderFlowBacktester() {
 
           {loadError ? <div className="text-sm text-rose-200">{loadError}</div> : null}
 
-          <div className="grid gap-4 xl:grid-cols-[0.78fr_1.5fr]">
-            <div className="grid gap-4">
+          <div className="grid gap-8">
+            <div className="grid gap-4 lg:grid-cols-2">
               <Card className="border-white/10 bg-black/35">
                 <CardHeader>
                   <div className="flex items-center justify-between gap-3">
@@ -659,84 +659,82 @@ export function OrderFlowBacktester() {
               />
             </div>
 
-            <div className="grid gap-4">
-              <BacktestMetrics result={result} />
+            <BacktestMetrics result={result} />
 
-              <Card className="overflow-hidden border-white/10 bg-black/35">
-                <CardHeader>
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                    <div>
-                      <CardTitle>
-                        {activeTab === "price"
-                          ? `${tickerLabel} · Price + Delta`
-                          : activeTab === "cvd"
-                            ? `${tickerLabel} · CVD`
-                            : activeTab === "bouncyball"
-                              ? `${tickerLabel} · Bouncy Ball Strategy`
-                              : activeTab === "tradingview"
-                                ? `${tickerLabel} · Multi-Timeframe TradingView`
-                                : "Backtest Equity"}
-                      </CardTitle>
-                      <p className="mt-1 text-sm text-zinc-400">
-                        {activeTab === "bouncyball" ? (
-                          <>
-                            Candlestick overlay for <span className="font-black text-white">{tickerLabel}</span> with
-                            bounce touches, CVD divergences, entries, and SL/TP from your strategy engine.
-                          </>
-                        ) : activeTab === "tradingview" ? (
-                          <>
-                            Compare <span className="font-black text-white">{tickerLabel}</span> across 5m, 15m,
-                            1H, 4H, and daily. Strategy markers live on the{" "}
-                            <span className="font-black text-white">Bouncy Ball</span> tab — the free TradingView
-                            embed cannot draw custom signals.
-                          </>
-                        ) : (
-                          <>
-                            CVD divergence on <span className="font-black text-white">{tickerLabel}</span> means
-                            price makes a fresh extreme while cumulative delta fails to confirm the move.
-                          </>
-                        )}
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {chartTabs.map((tab) => (
-                        <Button
-                          key={tab.id}
-                          type="button"
-                          onClick={() => setActiveTab(tab.id)}
-                          className={cn("px-3 py-2 text-xs", activeTab === tab.id && "border-cyan-300/60 bg-cyan-300/15")}
-                        >
-                          {tab.label}
-                        </Button>
-                      ))}
-                    </div>
+            <Card className="w-full overflow-hidden border-white/10 bg-black/35">
+              <CardHeader>
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <CardTitle>
+                      {activeTab === "price"
+                        ? `${tickerLabel} · Price + Delta`
+                        : activeTab === "cvd"
+                          ? `${tickerLabel} · CVD`
+                          : activeTab === "bouncyball"
+                            ? `${tickerLabel} · Bouncy Ball Strategy`
+                            : activeTab === "tradingview"
+                              ? `${tickerLabel} · Multi-Timeframe TradingView`
+                              : "Backtest Equity"}
+                    </CardTitle>
+                    <p className="mt-2 text-sm leading-relaxed text-zinc-400">
+                      {activeTab === "bouncyball" ? (
+                        <>
+                          Candlestick overlay for <span className="font-black text-white">{tickerLabel}</span> with
+                          bounce touches, CVD divergences, entries, and SL/TP from your strategy engine.
+                        </>
+                      ) : activeTab === "tradingview" ? (
+                        <>
+                          Compare <span className="font-black text-white">{tickerLabel}</span> across 5m, 15m,
+                          1H, 4H, and daily. Strategy markers live on the{" "}
+                          <span className="font-black text-white">Bouncy Ball</span> tab — the free TradingView
+                          embed cannot draw custom signals.
+                        </>
+                      ) : (
+                        <>
+                          CVD divergence on <span className="font-black text-white">{tickerLabel}</span> means
+                          price makes a fresh extreme while cumulative delta fails to confirm the move.
+                        </>
+                      )}
+                    </p>
                   </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="rounded-3xl border border-white/10 bg-zinc-950/70 p-3">
-                    {activeTab === "tradingview" ? (
-                      <TradingViewMultiTimeframe
-                        symbol={selectedTicker.tradingViewSymbol}
-                        tickerLabel={tickerLabel}
-                      />
-                    ) : activeTab === "bouncyball" ? (
-                      <BouncyBallStrategyChart bars={enhancedBars} signals={signals} tickerLabel={tickerLabel} />
-                    ) : loading && !bars.length ? (
-                      <div className="flex min-h-[430px] items-center justify-center gap-3 text-sm text-zinc-400">
-                        <Loader2 className="h-5 w-5 animate-spin text-cyan-200" />
-                        Loading {selectedTicker.yahooSymbol} OHLCV...
-                      </div>
-                    ) : activeTab === "price" ? (
-                      <PriceDeltaChart chartData={chartData} signals={signals} tickerLabel={tickerLabel} />
-                    ) : activeTab === "cvd" ? (
-                      <CvdChart chartData={chartData} tickerLabel={tickerLabel} />
-                    ) : (
-                      <EquityChart result={result} />
-                    )}
+                  <div className="flex flex-wrap gap-2">
+                    {chartTabs.map((tab) => (
+                      <Button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setActiveTab(tab.id)}
+                        className={cn("px-3 py-2 text-xs", activeTab === tab.id && "border-cyan-300/60 bg-cyan-300/15")}
+                      >
+                        {tab.label}
+                      </Button>
+                    ))}
                   </div>
-                </CardContent>
-              </Card>
-            </div>
+                </div>
+              </CardHeader>
+              <CardContent className="px-4 pb-6 sm:px-6">
+                <div className="w-full rounded-3xl border border-white/10 bg-zinc-950/70 p-2 sm:p-3">
+                  {activeTab === "tradingview" ? (
+                    <TradingViewMultiTimeframe
+                      symbol={selectedTicker.tradingViewSymbol}
+                      tickerLabel={tickerLabel}
+                    />
+                  ) : activeTab === "bouncyball" ? (
+                    <BouncyBallStrategyChart bars={enhancedBars} signals={signals} tickerLabel={tickerLabel} />
+                  ) : loading && !bars.length ? (
+                    <div className="flex min-h-[560px] items-center justify-center gap-3 text-sm text-zinc-400">
+                      <Loader2 className="h-5 w-5 animate-spin text-cyan-200" />
+                      Loading {selectedTicker.yahooSymbol} OHLCV...
+                    </div>
+                  ) : activeTab === "price" ? (
+                    <PriceDeltaChart chartData={chartData} signals={signals} tickerLabel={tickerLabel} />
+                  ) : activeTab === "cvd" ? (
+                    <CvdChart chartData={chartData} tickerLabel={tickerLabel} />
+                  ) : (
+                    <EquityChart result={result} />
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
           <div className="grid gap-4 xl:grid-cols-[1fr_0.72fr]">
