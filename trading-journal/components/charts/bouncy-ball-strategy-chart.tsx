@@ -21,6 +21,9 @@ import type { OrderFlowBar, StrategySignal } from "@/lib/orderflow/types";
 type BouncyBallStrategyChartProps = {
   bars: OrderFlowBar[];
   signals: StrategySignal[];
+  visibleSignals: StrategySignal[];
+  showAllSignals: boolean;
+  onShowAllSignalsChange: (value: boolean) => void;
   tickerLabel: string;
   className?: string;
 };
@@ -100,9 +103,42 @@ function LegendItem({ color, label }: { color: string; label: string }) {
   );
 }
 
+const SIGNAL_FOCUS_PADDING_BARS = 90;
+const DEFAULT_VISIBLE_BARS = 240;
+
+function focusRecentBars(chart: IChartApi, bars: OrderFlowBar[], visibleBars = DEFAULT_VISIBLE_BARS) {
+  if (!bars.length) {
+    return;
+  }
+
+  const toIndex = bars.length - 1;
+  const fromIndex = Math.max(0, toIndex - visibleBars + 1);
+  const from = toChartTime(bars[fromIndex].timestamp);
+  const to = toChartTime(bars[toIndex].timestamp);
+
+  chart.timeScale().setVisibleRange({ from, to });
+}
+
+function focusChartOnSignal(chart: IChartApi, bars: OrderFlowBar[], signal: StrategySignal) {
+  const index = bars.findIndex((bar) => bar.timestamp === signal.timestamp);
+  if (index < 0) {
+    return;
+  }
+
+  const fromIndex = Math.max(0, index - SIGNAL_FOCUS_PADDING_BARS);
+  const toIndex = Math.min(bars.length - 1, index + SIGNAL_FOCUS_PADDING_BARS);
+  const from = toChartTime(bars[fromIndex].timestamp);
+  const to = toChartTime(bars[toIndex].timestamp);
+
+  chart.timeScale().setVisibleRange({ from, to });
+}
+
 export function BouncyBallStrategyChart({
   bars,
   signals,
+  visibleSignals,
+  showAllSignals,
+  onShowAllSignalsChange,
   tickerLabel,
   className,
 }: BouncyBallStrategyChartProps) {
@@ -148,8 +184,8 @@ export function BouncyBallStrategyChart({
     [bars],
   );
 
-  const markers = useMemo(() => buildMarkers(bars, signals), [bars, signals]);
-  const recentSignals = useMemo(() => signals.slice(-6), [signals]);
+  const markers = useMemo(() => buildMarkers(bars, visibleSignals), [bars, visibleSignals]);
+  const focusSignal = visibleSignals.length === 1 ? visibleSignals[0] : null;
 
   useEffect(() => {
     const container = containerRef.current;
@@ -243,7 +279,7 @@ export function BouncyBallStrategyChart({
     }
     priceLinesRef.current = [];
 
-    for (const signal of recentSignals) {
+    for (const signal of visibleSignals) {
       priceLinesRef.current.push(
         candles.createPriceLine({
           price: signal.entry,
@@ -272,8 +308,12 @@ export function BouncyBallStrategyChart({
       );
     }
 
-    chart.timeScale().fitContent();
-  }, [candleData, markers, recentSignals, resistanceData, supportData]);
+    if (focusSignal) {
+      focusChartOnSignal(chart, bars, focusSignal);
+    } else {
+      focusRecentBars(chart, bars);
+    }
+  }, [bars, candleData, focusSignal, markers, resistanceData, supportData, visibleSignals]);
 
   if (!bars.length) {
     return (
@@ -289,7 +329,24 @@ export function BouncyBallStrategyChart({
         <div className="flex flex-wrap items-center gap-2">
           <Badge tone="gold">Bouncy Ball overlay</Badge>
           <Badge tone="blue">{tickerLabel}</Badge>
+          <Badge tone="neutral">1m candles</Badge>
+          <Badge tone="neutral">
+            {showAllSignals
+              ? `${signals.length} signals on chart`
+              : visibleSignals.length
+                ? `${visibleSignals.length} selected`
+                : "Click a signal row"}
+          </Badge>
         </div>
+        <label className="inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-white/10 bg-black/25 px-3 py-2 text-xs font-semibold text-zinc-200">
+          <input
+            type="checkbox"
+            checked={showAllSignals}
+            onChange={(event) => onShowAllSignalsChange(event.target.checked)}
+            className="h-4 w-4 accent-cyan-300"
+          />
+          See all signals on chart
+        </label>
         <div className="flex flex-wrap gap-4">
           <LegendItem color="#34d399" label="Support bounce" />
           <LegendItem color="#fb7185" label="Resistance reject" />

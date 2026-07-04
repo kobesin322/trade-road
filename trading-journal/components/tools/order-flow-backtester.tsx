@@ -45,6 +45,8 @@ import {
 import { cn } from "@/lib/utils";
 
 const DEFAULT_TICKER_ID = CRYPTO_WATCHLIST[0].id;
+const STRATEGY_LAB_CHART_RANGE = "5d";
+const STRATEGY_LAB_CHART_INTERVAL = "1m";
 
 type ChartTab = "price" | "cvd" | "bouncyball" | "tradingview" | "equity";
 
@@ -502,6 +504,8 @@ export function OrderFlowBacktester() {
   const [loading, setLoading] = useState(true);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [showAllSignalsOnChart, setShowAllSignalsOnChart] = useState(false);
+  const [selectedSignalIds, setSelectedSignalIds] = useState<string[]>([]);
 
   const selectedTicker = useMemo(
     () => [...CRYPTO_WATCHLIST, ...STOCK_WATCHLIST].find((item) => item.id === selectedTickerId) ?? CRYPTO_WATCHLIST[0],
@@ -513,9 +517,12 @@ export function OrderFlowBacktester() {
     setLoadError(null);
 
     try {
-      const response = await fetch(`/api/market-data/ohlcv?id=${encodeURIComponent(tickerId)}&range=5d&interval=15m`, {
+      const response = await fetch(
+        `/api/market-data/ohlcv?id=${encodeURIComponent(tickerId)}&range=${STRATEGY_LAB_CHART_RANGE}&interval=${STRATEGY_LAB_CHART_INTERVAL}`,
+        {
         cache: "no-store",
-      });
+      },
+      );
       const payload: unknown = await response.json();
 
       if (!response.ok) {
@@ -547,6 +554,18 @@ export function OrderFlowBacktester() {
 
   const enhancedBars = useMemo(() => enhanceOrderFlowBars(bars, params), [bars, params]);
   const signals = useMemo(() => generateEnhancedSignals(enhancedBars, params), [enhancedBars, params]);
+  const visibleChartSignals = useMemo(() => {
+    if (showAllSignalsOnChart) {
+      return signals;
+    }
+
+    if (selectedSignalIds.length) {
+      const selected = new Set(selectedSignalIds);
+      return signals.filter((signal) => selected.has(signal.id));
+    }
+
+    return [];
+  }, [selectedSignalIds, showAllSignalsOnChart, signals]);
   const result = useMemo(() => runBacktest(bars, signals, params), [bars, params, signals]);
   const chartData = useMemo(
     () =>
@@ -564,6 +583,23 @@ export function OrderFlowBacktester() {
     () => enhancedBars.filter((bar: OrderFlowBar) => bar.deltaDivergence),
     [enhancedBars],
   );
+
+  function toggleSignalSelection(signalId: string) {
+    if (showAllSignalsOnChart) {
+      setShowAllSignalsOnChart(false);
+    }
+
+    setSelectedSignalIds((current) =>
+      current.includes(signalId) ? current.filter((id) => id !== signalId) : [...current, signalId],
+    );
+  }
+
+  function handleShowAllSignalsChange(nextValue: boolean) {
+    setShowAllSignalsOnChart(nextValue);
+    if (nextValue) {
+      setSelectedSignalIds([]);
+    }
+  }
 
   const handleFile = async (file: File | undefined) => {
     if (!file) {
@@ -679,7 +715,7 @@ export function OrderFlowBacktester() {
                     <p className="mt-2 text-sm leading-relaxed text-zinc-400">
                       {activeTab === "bouncyball" ? (
                         <>
-                          Candlestick overlay for <span className="font-black text-white">{tickerLabel}</span> with
+                          1-minute candlestick overlay for <span className="font-black text-white">{tickerLabel}</span> with
                           bounce touches, CVD divergences, entries, and SL/TP from your strategy engine.
                         </>
                       ) : activeTab === "tradingview" ? (
@@ -719,7 +755,14 @@ export function OrderFlowBacktester() {
                       tickerLabel={tickerLabel}
                     />
                   ) : activeTab === "bouncyball" ? (
-                    <BouncyBallStrategyChart bars={enhancedBars} signals={signals} tickerLabel={tickerLabel} />
+                    <BouncyBallStrategyChart
+                      bars={enhancedBars}
+                      signals={signals}
+                      visibleSignals={visibleChartSignals}
+                      showAllSignals={showAllSignalsOnChart}
+                      onShowAllSignalsChange={handleShowAllSignalsChange}
+                      tickerLabel={tickerLabel}
+                    />
                   ) : loading && !bars.length ? (
                     <div className="flex min-h-[560px] items-center justify-center gap-3 text-sm text-zinc-400">
                       <Loader2 className="h-5 w-5 animate-spin text-cyan-200" />
@@ -741,7 +784,14 @@ export function OrderFlowBacktester() {
             <Card className="border-white/10 bg-black/35">
               <CardHeader>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <CardTitle>Recent Signals</CardTitle>
+                  <div>
+                    <CardTitle>Recent Signals</CardTitle>
+                    {activeTab === "bouncyball" && !showAllSignalsOnChart ? (
+                      <p className="mt-1 text-xs text-zinc-500">
+                        Click rows to show selected entry, SL, and TP on the Bouncy Ball chart.
+                      </p>
+                    ) : null}
+                  </div>
                   <Button
                     type="button"
                     disabled={!signals.length}
@@ -769,8 +819,21 @@ export function OrderFlowBacktester() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/[0.05]">
-                      {signals.slice(-8).reverse().map((signal) => (
-                        <tr key={signal.id}>
+                      {signals.slice(-8).reverse().map((signal) => {
+                        const isSelected = selectedSignalIds.includes(signal.id);
+
+                        return (
+                          <tr
+                            key={signal.id}
+                            onClick={() => toggleSignalSelection(signal.id)}
+                            className={
+                              activeTab === "bouncyball"
+                                ? `cursor-pointer transition-colors hover:bg-white/[0.04] ${
+                                    isSelected ? "bg-cyan-400/10 ring-1 ring-inset ring-cyan-300/30" : ""
+                                  }`
+                                : undefined
+                            }
+                          >
                           <td className="px-4 py-3 font-mono text-xs font-black text-cyan-100">{tickerLabel}</td>
                           <td className="px-4 py-3 font-mono text-xs text-zinc-400">{formatDate(signal.timestamp)}</td>
                           <td className="px-4 py-3">
@@ -782,7 +845,8 @@ export function OrderFlowBacktester() {
                           <td className="px-4 py-3 font-mono text-cyan-100">{signal.deltaConfirmation.toFixed(2)}</td>
                           <td className="px-4 py-3 text-zinc-400">{signal.reason}</td>
                         </tr>
-                      ))}
+                        );
+                      })}
                       {!signals.length ? (
                         <tr>
                           <td colSpan={8} className="px-4 py-10 text-center text-zinc-500">

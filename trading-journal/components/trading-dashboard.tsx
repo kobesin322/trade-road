@@ -16,6 +16,8 @@ import {
   BookOpen,
   CalendarDays,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Crosshair,
   FlaskConical,
   Flame,
@@ -37,7 +39,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { type CSSProperties, useEffect, useMemo, useState, useTransition } from "react";
+import { type ChangeEvent, type CSSProperties, useEffect, useMemo, useState, useTransition } from "react";
 import {
   Bar,
   BarChart,
@@ -82,23 +84,31 @@ import { countMistakes } from "@/lib/trading-mistakes";
 
 const mainViews = ["Dashboard", "Journal", "Portfolio", "Charts", "Strategy Lab", "Calendar"] as const;
 
-const toolLinks = [
+const toolLinks: Array<{
+  href: string;
+  title: string;
+  description: string;
+  icon: LucideIcon;
+}> = [
   {
     href: "/?view=Strategy%20Lab",
     title: "Strategy Lab",
     description: "CVD bounce backtester",
+    icon: FlaskConical,
   },
   {
     href: "/tools/correlation",
     title: "Correlation Matrix",
     description: "Pearson pair selection",
+    icon: Scale,
   },
   {
     href: "/tools/orderflow",
     title: "Order Flow",
     description: "Market microstructure",
+    icon: Gauge,
   },
-] as const;
+];
 const journalTabs = ["List overview", "Wins Vs Losses", "Strategy overview"] as const;
 const strategies = JOURNAL_STRATEGIES;
 
@@ -204,6 +214,43 @@ function ChartPlaceholder({ label = "Loading chart" }: { label?: string }) {
   );
 }
 
+function ClientMonthInput({
+  value,
+  onChange,
+  className,
+  "aria-label": ariaLabel,
+}: {
+  value: string;
+  onChange: (event: ChangeEvent<HTMLInputElement>) => void;
+  className?: string;
+  "aria-label"?: string;
+}) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return null;
+  }
+
+  return (
+    <input
+      type="month"
+      value={value}
+      onChange={onChange}
+      className={className}
+      aria-label={ariaLabel}
+      autoComplete="off"
+      data-1p-ignore="true"
+      data-form-type="other"
+      data-lpignore="true"
+      name="calendar-month"
+    />
+  );
+}
+
 type JournalSection = "trades" | "daily-overview";
 
 export type TradingDashboardProps = {
@@ -251,7 +298,28 @@ export function TradingDashboard({
   );
   const [portfolioSnapshotDates, setPortfolioSnapshotDates] = useState<string[]>([]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    try {
+      setSidebarCollapsed(localStorage.getItem("traderoad-sidebar-collapsed") === "true");
+    } catch {
+      // ignore storage errors
+    }
+  }, []);
+
+  function toggleSidebar() {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("traderoad-sidebar-collapsed", String(next));
+      } catch {
+        // ignore storage errors
+      }
+      return next;
+    });
+  }
 
   useEffect(() => {
     setDemoTradesEnabled(initialDemoTradesEnabled);
@@ -414,23 +482,47 @@ export function TradingDashboard({
 
       <div className="relative flex min-h-screen">
         {/* Desktop sidebar */}
-        <aside className="sticky top-0 hidden h-screen w-72 shrink-0 flex-col border-r border-white/10 bg-black/20 backdrop-blur-xl lg:flex xl:w-80">
-          <div className="border-b border-white/10 px-7 py-8">
+        <aside
+          className={cn(
+            "sticky top-0 hidden h-screen shrink-0 flex-col border-r border-white/10 bg-black/20 backdrop-blur-xl transition-[width] duration-300 ease-out lg:flex",
+            sidebarCollapsed ? "w-[4.75rem]" : "w-72 xl:w-80",
+          )}
+        >
+          <div
+            className={cn(
+              "border-b border-white/10",
+              sidebarCollapsed ? "flex flex-col items-center px-3 py-6" : "px-7 py-8",
+            )}
+          >
             <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.32em] text-cyan-200/80">
-              <Sparkles className="h-3.5 w-3.5" />
-              Trade Road
+              <Sparkles className="h-3.5 w-3.5 shrink-0" />
+              {!sidebarCollapsed ? "Trade Road" : null}
             </div>
-            <h1 className="mt-3 text-2xl font-black tracking-tight text-white">Trading Journal</h1>
-            <p className="mt-2 text-sm leading-relaxed text-zinc-500">
-              Clean entries, protected streaks, scoreable feedback.
-            </p>
+            {!sidebarCollapsed ? (
+              <>
+                <h1 className="mt-3 text-2xl font-black tracking-tight text-white">Trading Journal</h1>
+                <p className="mt-2 text-sm leading-relaxed text-zinc-500">
+                  Clean entries, protected streaks, scoreable feedback.
+                </p>
+              </>
+            ) : (
+              <span className="sr-only">Trading Journal</span>
+            )}
           </div>
 
-          <nav aria-label="Main navigation" className="flex-1 space-y-8 overflow-y-auto px-5 py-8">
+          <nav
+            aria-label="Main navigation"
+            className={cn(
+              "flex-1 space-y-8 overflow-y-auto py-8",
+              sidebarCollapsed ? "px-2" : "px-5",
+            )}
+          >
             <div className="space-y-1.5">
-              <p className="px-3 text-[10px] font-black uppercase tracking-[0.24em] text-zinc-600">
-                Workspace
-              </p>
+              {!sidebarCollapsed ? (
+                <p className="px-3 text-[10px] font-black uppercase tracking-[0.24em] text-zinc-600">
+                  Workspace
+                </p>
+              ) : null}
               {mainViews.map((view) => {
                 const Icon = mainViewConfig[view].icon;
                 const isActive = activeView === view;
@@ -438,139 +530,85 @@ export function TradingDashboard({
                   <button
                     key={view}
                     type="button"
+                    title={sidebarCollapsed ? view : undefined}
                     onClick={() => navigateToView(view)}
                     className={cn(
-                      "flex w-full items-center gap-3 rounded-2xl px-4 py-3.5 text-left text-sm font-semibold transition-all duration-200",
+                      "flex w-full items-center rounded-2xl text-left text-sm font-semibold transition-all duration-200",
+                      sidebarCollapsed
+                        ? "justify-center px-0 py-3.5"
+                        : "gap-3 px-4 py-3.5",
                       isActive
                         ? "bg-cyan-300 text-slate-950 shadow-[0_0_24px_rgba(34,211,238,0.28)]"
                         : "text-zinc-400 hover:bg-white/[0.06] hover:text-white",
                     )}
                   >
                     <Icon className="h-4 w-4 shrink-0" />
-                    {view}
+                    {!sidebarCollapsed ? view : <span className="sr-only">{view}</span>}
                   </button>
                 );
               })}
             </div>
 
             <div className="space-y-3">
-              <p className="px-3 text-[10px] font-black uppercase tracking-[0.24em] text-zinc-600">
-                Tools
-              </p>
+              {!sidebarCollapsed ? (
+                <p className="px-3 text-[10px] font-black uppercase tracking-[0.24em] text-zinc-600">
+                  Tools
+                </p>
+              ) : null}
               <div className="space-y-2">
-                {toolLinks.map((tool) => (
+                {toolLinks.map((tool) => {
+                  const ToolIcon = tool.icon;
+                  return (
                   <Link
                     key={tool.href}
                     href={tool.href}
-                    className="group flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3.5 transition hover:border-cyan-300/40 hover:bg-cyan-300/[0.07]"
+                    title={sidebarCollapsed ? tool.title : undefined}
+                    className={cn(
+                      "group flex items-center rounded-2xl border border-white/10 bg-white/[0.03] transition hover:border-cyan-300/40 hover:bg-cyan-300/[0.07]",
+                      sidebarCollapsed
+                        ? "justify-center px-0 py-3.5"
+                        : "justify-between gap-3 px-4 py-3.5",
+                    )}
                   >
-                    <div className="min-w-0">
-                      <div className="text-sm font-bold text-white">{tool.title}</div>
-                      <div className="mt-0.5 truncate text-xs text-zinc-500">{tool.description}</div>
-                    </div>
-                    <ArrowUpRight className="h-4 w-4 shrink-0 text-cyan-200/70 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                    {sidebarCollapsed ? (
+                      <ToolIcon className="h-4 w-4 shrink-0 text-cyan-200/80" />
+                    ) : (
+                      <>
+                        <div className="min-w-0">
+                          <div className="text-sm font-bold text-white">{tool.title}</div>
+                          <div className="mt-0.5 truncate text-xs text-zinc-500">{tool.description}</div>
+                        </div>
+                        <ArrowUpRight className="h-4 w-4 shrink-0 text-cyan-200/70 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                      </>
+                    )}
+                    {sidebarCollapsed ? <span className="sr-only">{tool.title}</span> : null}
                   </Link>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </nav>
 
-          <div className="space-y-4 border-t border-white/10 px-5 py-6">
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4">
-              <p className="truncate text-sm font-semibold text-zinc-200">{userEmail}</p>
-              <div className="mt-2">
-                <Badge tone={demoTradesEnabled ? "gold" : "blue"}>
-                  {demoTradesEnabled
-                    ? "Demo preview"
-                    : `Personal · ${personalTrades.length} trades`}
-                </Badge>
-              </div>
-              {seedMessage ? <p className="mt-2 text-xs text-amber-200">{seedMessage}</p> : null}
-            </div>
-
-            <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
-              <span className="px-1 text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">
-                Demo trades
-              </span>
-              <div className="mt-2 flex items-center gap-2">
-                <Button
-                  type="button"
-                  disabled={isPending}
-                  onClick={() => handleDemoToggle(false)}
-                  className={cn(
-                    "h-9 flex-1 px-3 text-xs font-black",
-                    !demoTradesEnabled
-                      ? "bg-cyan-300 text-slate-950 hover:bg-cyan-200"
-                      : "bg-white/5 text-zinc-300 hover:bg-white/10",
-                  )}
-                >
-                  Off
-                </Button>
-                <Button
-                  type="button"
-                  disabled={isPending}
-                  onClick={() => handleDemoToggle(true)}
-                  className={cn(
-                    "h-9 flex-1 px-3 text-xs font-black",
-                    demoTradesEnabled
-                      ? "bg-amber-300 text-slate-950 hover:bg-amber-200"
-                      : "bg-white/5 text-zinc-300 hover:bg-white/10",
-                  )}
-                >
-                  On
-                </Button>
-              </div>
-            </div>
-
-            <div className="grid gap-2">
-              {canUsePersonalJournal ? (
-                <Button
-                  type="button"
-                  disabled={isPending || demoTradesEnabled}
-                  onClick={() => {
-                    setSeedMessage(null);
-                    startTransition(async () => {
-                      const result = await seedSampleTrades();
-                      setSeedMessage(result.message);
-                      if (result.ok) {
-                        router.refresh();
-                      }
-                    });
-                  }}
-                  className="w-full justify-center bg-white/5 text-xs text-zinc-100"
-                >
-                  Import demo
-                </Button>
-              ) : null}
-              <Button
-                type="button"
-                disabled={!canUsePersonalJournal || demoTradesEnabled || !personalTrades.length}
-                onClick={() => {
-                  startTransition(async () => {
-                    const csv = await buildTradesCsv();
-                    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-                    const url = URL.createObjectURL(blob);
-                    const anchor = document.createElement("a");
-                    anchor.href = url;
-                    anchor.download = "traderoad-trades.csv";
-                    anchor.click();
-                    URL.revokeObjectURL(url);
-                  });
-                }}
-                className="w-full justify-center bg-white/5 text-xs text-zinc-100"
-              >
-                Export CSV
-              </Button>
-              <form action={signOut}>
-                <Button
-                  type="submit"
-                  className="w-full justify-center bg-rose-500/10 text-xs text-rose-100 hover:bg-rose-500/20"
-                >
-                  <LogOut className="h-3.5 w-3.5" />
-                  Sign out
-                </Button>
-              </form>
-            </div>
+          <div className="border-t border-white/10 p-3">
+            <button
+              type="button"
+              onClick={toggleSidebar}
+              aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              className={cn(
+                "flex w-full items-center rounded-2xl border border-white/10 bg-white/[0.04] text-zinc-400 transition hover:bg-white/[0.08] hover:text-white",
+                sidebarCollapsed ? "justify-center px-0 py-3" : "gap-3 px-4 py-3",
+              )}
+            >
+              {sidebarCollapsed ? (
+                <ChevronRight className="h-4 w-4" />
+              ) : (
+                <>
+                  <ChevronLeft className="h-4 w-4 shrink-0" />
+                  <span className="text-sm font-semibold">Collapse</span>
+                </>
+              )}
+            </button>
           </div>
         </aside>
 
@@ -639,6 +677,18 @@ export function TradingDashboard({
                 >
                   <Menu className="h-5 w-5" />
                 </button>
+                <button
+                  type="button"
+                  aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+                  onClick={toggleSidebar}
+                  className="mt-0.5 hidden rounded-2xl border border-white/10 p-2.5 text-zinc-400 transition hover:bg-white/10 hover:text-white lg:inline-flex"
+                >
+                  {sidebarCollapsed ? (
+                    <ChevronRight className="h-5 w-5" />
+                  ) : (
+                    <ChevronLeft className="h-5 w-5" />
+                  )}
+                </button>
                 <div>
                   <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.24em] text-cyan-200/70">
                     <ActiveViewIcon className="h-3.5 w-3.5" />
@@ -654,6 +704,92 @@ export function TradingDashboard({
               </div>
 
               <div className="flex flex-wrap items-center gap-3 lg:justify-end">
+                <div className="hidden items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2 md:flex">
+                  <span className="max-w-[160px] truncate text-xs font-semibold text-zinc-300">
+                    {userEmail}
+                  </span>
+                  <Badge tone={demoTradesEnabled ? "gold" : "blue"}>
+                    {demoTradesEnabled ? "Demo" : `${personalTrades.length} trades`}
+                  </Badge>
+                </div>
+
+                <div className="flex items-center gap-1 rounded-2xl border border-white/10 bg-black/30 p-1.5">
+                  <Button
+                    type="button"
+                    disabled={isPending}
+                    onClick={() => handleDemoToggle(false)}
+                    className={cn(
+                      "h-8 px-3 text-xs font-black",
+                      !demoTradesEnabled
+                        ? "bg-cyan-300 text-slate-950 hover:bg-cyan-200"
+                        : "bg-transparent text-zinc-400 hover:bg-white/10 hover:text-white",
+                    )}
+                  >
+                    Demo off
+                  </Button>
+                  <Button
+                    type="button"
+                    disabled={isPending}
+                    onClick={() => handleDemoToggle(true)}
+                    className={cn(
+                      "h-8 px-3 text-xs font-black",
+                      demoTradesEnabled
+                        ? "bg-amber-300 text-slate-950 hover:bg-amber-200"
+                        : "bg-transparent text-zinc-400 hover:bg-white/10 hover:text-white",
+                    )}
+                  >
+                    Demo on
+                  </Button>
+                </div>
+
+                {canUsePersonalJournal ? (
+                  <Button
+                    type="button"
+                    disabled={isPending || demoTradesEnabled}
+                    onClick={() => {
+                      setSeedMessage(null);
+                      startTransition(async () => {
+                        const result = await seedSampleTrades();
+                        setSeedMessage(result.message);
+                        if (result.ok) {
+                          router.refresh();
+                        }
+                      });
+                    }}
+                    className="hidden bg-white/5 text-xs text-zinc-100 sm:inline-flex"
+                  >
+                    Import demo
+                  </Button>
+                ) : null}
+                <Button
+                  type="button"
+                  disabled={!canUsePersonalJournal || demoTradesEnabled || !personalTrades.length}
+                  onClick={() => {
+                    startTransition(async () => {
+                      const csv = await buildTradesCsv();
+                      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+                      const url = URL.createObjectURL(blob);
+                      const anchor = document.createElement("a");
+                      anchor.href = url;
+                      anchor.download = "traderoad-trades.csv";
+                      anchor.click();
+                      URL.revokeObjectURL(url);
+                    });
+                  }}
+                  className="bg-white/5 text-xs text-zinc-100"
+                >
+                  Export CSV
+                </Button>
+                <form action={signOut}>
+                  <Button
+                    type="submit"
+                    className="bg-rose-500/10 text-xs text-rose-100 hover:bg-rose-500/20"
+                  >
+                    <LogOut className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Sign out</span>
+                  </Button>
+                </form>
+
                 <div className="relative">
                   <Button
                     type="button"
@@ -664,8 +800,7 @@ export function TradingDashboard({
                     {calendarLabel}
                     <ChevronDown className="h-4 w-4 opacity-60" />
                   </Button>
-                  <input
-                    type="month"
+                  <ClientMonthInput
                     value={format(calendarMonth, "yyyy-MM")}
                     onChange={(event) => {
                       const [year, month] = event.target.value.split("-").map(Number);
@@ -698,6 +833,10 @@ export function TradingDashboard({
                 </Button>
               </div>
             </div>
+
+            {seedMessage ? (
+              <p className="mt-4 text-sm text-amber-200">{seedMessage}</p>
+            ) : null}
 
             {/* Mobile horizontal nav */}
             <nav
@@ -1641,8 +1780,7 @@ function CalendarView({
                   <CalendarDays className="h-3.5 w-3.5" />
                   {calendarLabel}
                 </Badge>
-                <input
-                  type="month"
+                <ClientMonthInput
                   value={format(calendarMonth, "yyyy-MM")}
                   onChange={(event) => {
                     const [year, month] = event.target.value.split("-").map(Number);
