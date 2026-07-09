@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CandlestickSeries,
   ColorType,
@@ -28,17 +28,37 @@ type BouncyBallStrategyChartProps = {
   className?: string;
 };
 
+type OverlayFilters = {
+  supportLine: boolean;
+  resistanceLine: boolean;
+  supportBounces: boolean;
+  resistanceRejects: boolean;
+  cvdDivergence: boolean;
+};
+
+const DEFAULT_OVERLAY_FILTERS: OverlayFilters = {
+  supportLine: true,
+  resistanceLine: true,
+  supportBounces: true,
+  resistanceRejects: true,
+  cvdDivergence: true,
+};
+
 function toChartTime(timestamp: number): UTCTimestamp {
   return Math.floor(timestamp / 1000) as UTCTimestamp;
 }
 
-function buildMarkers(bars: OrderFlowBar[], signals: StrategySignal[]): SeriesMarker<UTCTimestamp>[] {
+function buildMarkers(
+  bars: OrderFlowBar[],
+  signals: StrategySignal[],
+  filters: OverlayFilters,
+): SeriesMarker<UTCTimestamp>[] {
   const barMarkers = new Map<number, SeriesMarker<UTCTimestamp>>();
 
   for (const bar of bars) {
     const time = toChartTime(bar.timestamp);
 
-    if (bar.isSupportTouch) {
+    if (filters.supportBounces && bar.isSupportTouch) {
       barMarkers.set(bar.timestamp, {
         time,
         position: "belowBar",
@@ -48,7 +68,7 @@ function buildMarkers(bars: OrderFlowBar[], signals: StrategySignal[]): SeriesMa
       });
     }
 
-    if (bar.isResistanceTouch) {
+    if (filters.resistanceRejects && bar.isResistanceTouch) {
       barMarkers.set(bar.timestamp, {
         time,
         position: "aboveBar",
@@ -58,7 +78,7 @@ function buildMarkers(bars: OrderFlowBar[], signals: StrategySignal[]): SeriesMa
       });
     }
 
-    if (bar.deltaDivergence === "bullish") {
+    if (filters.cvdDivergence && bar.deltaDivergence === "bullish") {
       barMarkers.set(bar.timestamp, {
         time,
         position: "belowBar",
@@ -68,7 +88,7 @@ function buildMarkers(bars: OrderFlowBar[], signals: StrategySignal[]): SeriesMa
       });
     }
 
-    if (bar.deltaDivergence === "bearish") {
+    if (filters.cvdDivergence && bar.deltaDivergence === "bearish") {
       barMarkers.set(bar.timestamp, {
         time,
         position: "aboveBar",
@@ -100,6 +120,31 @@ function LegendItem({ color, label }: { color: string; label: string }) {
       <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} />
       {label}
     </span>
+  );
+}
+
+function OverlayFilterCheckbox({
+  checked,
+  color,
+  label,
+  onChange,
+}: {
+  checked: boolean;
+  color: string;
+  label: string;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-white/10 bg-black/25 px-2.5 py-1.5 text-xs font-medium text-zinc-300 transition-colors hover:bg-white/[0.04]">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+        className="h-3.5 w-3.5 accent-cyan-300"
+      />
+      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} />
+      {label}
+    </label>
   );
 }
 
@@ -142,6 +187,7 @@ export function BouncyBallStrategyChart({
   tickerLabel,
   className,
 }: BouncyBallStrategyChartProps) {
+  const [overlayFilters, setOverlayFilters] = useState<OverlayFilters>(DEFAULT_OVERLAY_FILTERS);
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
@@ -184,8 +230,32 @@ export function BouncyBallStrategyChart({
     [bars],
   );
 
-  const markers = useMemo(() => buildMarkers(bars, visibleSignals), [bars, visibleSignals]);
+  const markers = useMemo(
+    () => buildMarkers(bars, visibleSignals, overlayFilters),
+    [bars, overlayFilters, visibleSignals],
+  );
   const focusSignal = visibleSignals.length === 1 ? visibleSignals[0] : null;
+
+  function setOverlayFilter(key: keyof OverlayFilters, value: boolean) {
+    setOverlayFilters((current) => ({
+      ...current,
+      [key]: value,
+    }));
+  }
+
+  function showSignalSetupOnly() {
+    setOverlayFilters({
+      supportLine: false,
+      resistanceLine: false,
+      supportBounces: false,
+      resistanceRejects: false,
+      cvdDivergence: false,
+    });
+  }
+
+  function showAllOverlays() {
+    setOverlayFilters(DEFAULT_OVERLAY_FILTERS);
+  }
 
   useEffect(() => {
     const container = containerRef.current;
@@ -272,6 +342,8 @@ export function BouncyBallStrategyChart({
     candles.setData(candleData);
     supportLine.setData(supportData);
     resistanceLine.setData(resistanceData);
+    supportLine.applyOptions({ visible: overlayFilters.supportLine });
+    resistanceLine.applyOptions({ visible: overlayFilters.resistanceLine });
     markersRef.current?.setMarkers(markers);
 
     for (const line of priceLinesRef.current) {
@@ -313,7 +385,7 @@ export function BouncyBallStrategyChart({
     } else {
       focusRecentBars(chart, bars);
     }
-  }, [bars, candleData, focusSignal, markers, resistanceData, supportData, visibleSignals]);
+  }, [bars, candleData, focusSignal, markers, overlayFilters, resistanceData, supportData, visibleSignals]);
 
   if (!bars.length) {
     return (
@@ -347,14 +419,61 @@ export function BouncyBallStrategyChart({
           />
           See all signals on chart
         </label>
-        <div className="flex flex-wrap gap-4">
-          <LegendItem color="#34d399" label="Support bounce" />
-          <LegendItem color="#fb7185" label="Resistance reject" />
-          <LegendItem color="#22d3ee" label="Bullish CVD div" />
-          <LegendItem color="#4ade80" label="Long entry" />
-          <LegendItem color="#f87171" label="Short entry / SL" />
-          <LegendItem color="#4ade80" label="Take profit" />
-        </div>
+      </div>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <span className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">Chart layers</span>
+        <OverlayFilterCheckbox
+          checked={overlayFilters.supportLine}
+          color="#34d399"
+          label="Support line"
+          onChange={(value) => setOverlayFilter("supportLine", value)}
+        />
+        <OverlayFilterCheckbox
+          checked={overlayFilters.resistanceLine}
+          color="#fb7185"
+          label="Resistance line"
+          onChange={(value) => setOverlayFilter("resistanceLine", value)}
+        />
+        <OverlayFilterCheckbox
+          checked={overlayFilters.supportBounces}
+          color="#34d399"
+          label="Support bounces"
+          onChange={(value) => setOverlayFilter("supportBounces", value)}
+        />
+        <OverlayFilterCheckbox
+          checked={overlayFilters.resistanceRejects}
+          color="#fb7185"
+          label="Resistance rejects"
+          onChange={(value) => setOverlayFilter("resistanceRejects", value)}
+        />
+        <OverlayFilterCheckbox
+          checked={overlayFilters.cvdDivergence}
+          color="#22d3ee"
+          label="CVD divergence"
+          onChange={(value) => setOverlayFilter("cvdDivergence", value)}
+        />
+        <button
+          type="button"
+          onClick={showSignalSetupOnly}
+          className="rounded-xl border border-cyan-300/25 bg-cyan-300/10 px-2.5 py-1.5 text-xs font-semibold text-cyan-100 transition-colors hover:bg-cyan-300/15"
+        >
+          Signal setup only
+        </button>
+        <button
+          type="button"
+          onClick={showAllOverlays}
+          className="rounded-xl border border-white/10 bg-black/25 px-2.5 py-1.5 text-xs font-semibold text-zinc-300 transition-colors hover:bg-white/[0.04]"
+        >
+          Show all layers
+        </button>
+      </div>
+      <div className="mb-3 flex flex-wrap gap-4">
+        <LegendItem color="#34d399" label="Support bounce" />
+        <LegendItem color="#fb7185" label="Resistance reject" />
+        <LegendItem color="#22d3ee" label="Bullish CVD div" />
+        <LegendItem color="#4ade80" label="Long entry" />
+        <LegendItem color="#f87171" label="Short entry / SL" />
+        <LegendItem color="#4ade80" label="Take profit" />
       </div>
       <div ref={containerRef} className="h-[560px] w-full overflow-hidden rounded-2xl" />
       <p className="mt-3 text-xs text-zinc-500">
