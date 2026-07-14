@@ -42,6 +42,9 @@ export async function PATCH(request: Request, context: RouteContext) {
         : {}),
       ...(body.notes !== undefined ? { notes: body.notes as string | null } : {}),
       ...(body.symbol !== undefined ? { symbol: String(body.symbol) } : {}),
+      ...(body.book_type === "core" || body.book_type === "tactical"
+        ? { book_type: body.book_type }
+        : {}),
     });
 
     if (!updated) {

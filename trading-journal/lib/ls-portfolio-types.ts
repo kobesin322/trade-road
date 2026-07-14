@@ -1,4 +1,10 @@
 export type PositionSide = "long" | "short";
+export type PositionBookType = "core" | "tactical";
+
+export const BOOK_TYPE_LABELS: Record<PositionBookType, string> = {
+  core: "Core",
+  tactical: "Tactical",
+};
 
 export type PortfolioDayCondition = {
   overtrading: boolean;
@@ -36,6 +42,7 @@ export type Position = {
   id: string;
   portfolio_id: string;
   side: PositionSide;
+  book_type: PositionBookType;
   symbol: string;
   quantity: number;
   avg_entry_price: number;
@@ -61,6 +68,64 @@ export type ComputedPosition = Position & {
   unrealized_pnl: number;
   pnl_percent: number;
   percent_of_pool: number;
+  risk_dollars: number | null;
+  risk_pct_of_pool: number | null;
+  risk_reward_ratio: number | null;
+};
+
+export type BookSlice = {
+  market_value: number;
+  unrealized_pnl: number;
+  position_count: number;
+  total_risk_dollars: number;
+  risk_positions_count: number;
+};
+
+export type BookAttribution = {
+  core_long: BookSlice;
+  core_short: BookSlice;
+  tactical_long: BookSlice;
+  tactical_short: BookSlice;
+  long_total: BookSlice;
+  short_total: BookSlice;
+  core_total: BookSlice;
+  tactical_total: BookSlice;
+};
+
+export type PortfolioRiskSummary = {
+  total_risk_dollars: number;
+  positions_with_stop: number;
+  positions_without_stop: number;
+  avg_risk_per_trade: number | null;
+  max_risk_position: { symbol: string; side: PositionSide; risk_dollars: number } | null;
+  risk_pct_of_total_pool: number;
+};
+
+export type RelativeStrengthRow = {
+  position_id: string;
+  symbol: string;
+  side: PositionSide;
+  book_type: PositionBookType;
+  position_return_pct: number;
+  benchmark_return_pct: number;
+  rs_spread: number;
+  rs_ratio: number | null;
+};
+
+export type RelativeStrengthSummary = {
+  benchmark: string;
+  range: string;
+  benchmark_return_pct: number;
+  rows: RelativeStrengthRow[];
+  as_of: string;
+};
+
+export type PortfolioSummary = {
+  pools: PortfolioPools;
+  attribution: BookAttribution;
+  risk: PortfolioRiskSummary;
+  relative_strength: RelativeStrengthSummary | null;
+  positions: ComputedPosition[];
 };
 
 export type PortfolioPools = {

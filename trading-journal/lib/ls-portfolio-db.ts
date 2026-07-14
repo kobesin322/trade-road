@@ -47,6 +47,7 @@ export function rowToPosition(row: PositionRow): Position {
     id: row.id,
     portfolio_id: row.portfolioId,
     side: row.side,
+    book_type: row.bookType ?? "tactical",
     symbol: row.symbol,
     quantity: num(row.quantity),
     avg_entry_price: num(row.avgEntryPrice),
@@ -230,6 +231,7 @@ export async function insertPosition(
     .values({
       portfolioId,
       side: input.side,
+      bookType: input.book_type ?? "tactical",
       symbol: input.symbol.toUpperCase(),
       quantity: String(input.quantity),
       avgEntryPrice: String(input.avg_entry_price),
@@ -255,6 +257,7 @@ export async function updatePosition(
     target_price: number | null;
     notes: string | null;
     symbol: string;
+    book_type: "core" | "tactical";
   }>,
 ) {
   const portfolio = await getPortfolioForUserDate(userId, date);
@@ -276,6 +279,7 @@ export async function updatePosition(
         : {}),
       ...(patch.notes !== undefined ? { notes: patch.notes } : {}),
       ...(patch.symbol !== undefined ? { symbol: patch.symbol.toUpperCase() } : {}),
+      ...(patch.book_type !== undefined ? { bookType: patch.book_type } : {}),
     })
     .where(and(eq(positions.id, positionId), eq(positions.portfolioId, portfolio.id)))
     .returning();
@@ -364,6 +368,7 @@ export async function copySnapshotFromPrevious(userId: string, date: string) {
     const position = rowToPosition(row);
     await insertPosition(target.id, {
       side: position.side,
+      book_type: position.book_type,
       symbol: position.symbol,
       quantity: position.quantity,
       avg_entry_price: position.avg_entry_price,

@@ -1,4 +1,5 @@
 import { JOURNAL_TICKER_GROUPS } from "@/lib/ticker-symbols";
+import { isMarketSymbolFormat } from "@/lib/market-data/custom-watchlist";
 
 export const JOURNAL_STRATEGIES = [
   "BouncyBall Breakout",
@@ -43,7 +44,12 @@ export const JOURNAL_PAIR_OPTIONS = JOURNAL_TICKER_GROUPS;
 export const JOURNAL_PAIR_VALUES = JOURNAL_PAIR_OPTIONS.flatMap((group) => group.symbols);
 
 export function isJournalPair(value: string) {
-  return JOURNAL_PAIR_VALUES.includes(value as (typeof JOURNAL_PAIR_VALUES)[number]);
+  const normalized = value.trim();
+  if (JOURNAL_PAIR_VALUES.includes(normalized as (typeof JOURNAL_PAIR_VALUES)[number])) {
+    return true;
+  }
+
+  return isMarketSymbolFormat(normalized);
 }
 
 export type JournalEntryInput = {

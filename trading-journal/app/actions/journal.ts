@@ -44,7 +44,7 @@ function validateJournalEntry(
   uploads: JournalScreenshotUpload[],
 ) {
   if (!isJournalPair(entry.pair)) {
-    return "Pair must be selected from the Charts watchlist.";
+    return "Pair must be selected from the Charts watchlist or your saved tickers.";
   }
   if (!entry.date.trim()) {
     return "Date is required.";

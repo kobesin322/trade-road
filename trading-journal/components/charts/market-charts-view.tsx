@@ -14,6 +14,7 @@ import {
 } from "recharts";
 
 import { TradingViewEmbed } from "@/components/charts/trading-view-embed";
+import { TickerSearchPanel } from "@/components/charts/ticker-search-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,6 +23,7 @@ import {
   STOCK_WATCHLIST,
   type WatchlistItem,
 } from "@/lib/market-data/symbols";
+import { useCustomWatchlist } from "@/lib/hooks/use-custom-watchlist";
 import type { MarketChartPayload } from "@/lib/market-data/yahoo-chart";
 import { cn } from "@/lib/utils";
 
@@ -183,6 +185,7 @@ function WatchlistSection({
   selectedId,
   title,
   onSelect,
+  onRemove,
 }: {
   chartsReady: boolean;
   items: WatchlistItem[];
@@ -190,7 +193,12 @@ function WatchlistSection({
   selectedId: string;
   title: string;
   onSelect: (id: string) => void;
+  onRemove?: (id: string) => void;
 }) {
+  if (!items.length) {
+    return null;
+  }
+
   return (
     <div className="grid gap-4">
       <div className="flex items-center gap-2">
@@ -199,14 +207,24 @@ function WatchlistSection({
       </div>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
         {items.map((item) => (
-          <MarketChartCard
-            key={item.id}
-            chartsReady={chartsReady}
-            item={item}
-            payload={payloads[item.id]}
-            selected={selectedId === item.id}
-            onSelect={() => onSelect(item.id)}
-          />
+          <div key={item.id} className="relative">
+            <MarketChartCard
+              chartsReady={chartsReady}
+              item={item}
+              payload={payloads[item.id]}
+              selected={selectedId === item.id}
+              onSelect={() => onSelect(item.id)}
+            />
+            {onRemove ? (
+              <button
+                type="button"
+                onClick={() => onRemove(item.id)}
+                className="absolute right-3 top-3 rounded-full border border-white/10 bg-black/70 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-zinc-400 hover:text-white"
+              >
+                Remove
+              </button>
+            ) : null}
+          </div>
         ))}
       </div>
     </div>
@@ -214,6 +232,7 @@ function WatchlistSection({
 }
 
 export function MarketChartsView({ chartsReady }: MarketChartsViewProps) {
+  const { items: customWatchlist, hydrated, removeItem } = useCustomWatchlist();
   const [payloads, setPayloads] = useState<Record<string, MarketChartPayload>>({});
   const [selectedId, setSelectedId] = useState<string>(CRYPTO_WATCHLIST[0].id);
   const [loading, setLoading] = useState(true);
@@ -221,17 +240,32 @@ export function MarketChartsView({ chartsReady }: MarketChartsViewProps) {
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
   const selectedItem = useMemo(() => {
-    return [...CRYPTO_WATCHLIST, ...STOCK_WATCHLIST].find((item) => item.id === selectedId);
-  }, [selectedId]);
+    return [...CRYPTO_WATCHLIST, ...STOCK_WATCHLIST, ...customWatchlist].find(
+      (item) => item.id === selectedId,
+    );
+  }, [customWatchlist, selectedId]);
 
   const selectedPayload = payloads[selectedId];
+
+  const extraSymbolsParam = useMemo(
+    () => customWatchlist.map((item) => item.yahooSymbol).join(","),
+    [customWatchlist],
+  );
 
   const loadWatchlist = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
-      const response = await fetch("/api/market-data/watchlist?range=5d&interval=15m", {
+      const query = new URLSearchParams({
+        range: "5d",
+        interval: "15m",
+      });
+      if (extraSymbolsParam) {
+        query.set("extraSymbols", extraSymbolsParam);
+      }
+
+      const response = await fetch(`/api/market-data/watchlist?${query.toString()}`, {
         cache: "no-store",
       });
       const body: unknown = await response.json();
@@ -253,9 +287,12 @@ export function MarketChartsView({ chartsReady }: MarketChartsViewProps) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [extraSymbolsParam]);
 
   useEffect(() => {
+    if (!hydrated) {
+      return;
+    }
     void loadWatchlist();
     const interval = window.setInterval(() => {
       void loadWatchlist();
@@ -264,7 +301,7 @@ export function MarketChartsView({ chartsReady }: MarketChartsViewProps) {
     return () => {
       window.clearInterval(interval);
     };
-  }, [loadWatchlist]);
+  }, [hydrated, loadWatchlist]);
 
   return (
     <section className="grid gap-6">
@@ -274,8 +311,8 @@ export function MarketChartsView({ chartsReady }: MarketChartsViewProps) {
             <div>
               <CardTitle>Live Market Charts</CardTitle>
               <p className="mt-1 max-w-3xl text-sm text-zinc-400">
-                Sparklines from Yahoo Finance (free). Select any symbol for a full TradingView chart —
-                Curated crypto pairs and US stock / ETF tickers.
+                Sparklines from Yahoo Finance (free). Search any symbol, add it to your watchlist,
+                and open a full TradingView chart.
               </p>
               {lastUpdated ? (
                 <p className="mt-2 text-xs text-zinc-500">
@@ -299,6 +336,20 @@ export function MarketChartsView({ chartsReady }: MarketChartsViewProps) {
       {error ? (
         <Card className="border-rose-400/30 bg-rose-500/10 p-4 text-sm text-rose-100">{error}</Card>
       ) : null}
+
+      <TickerSearchPanel selectedId={selectedId} onSelect={setSelectedId} />
+
+      <WatchlistSection
+        chartsReady={chartsReady}
+        items={customWatchlist}
+        payloads={payloads}
+        selectedId={selectedId}
+        title="Your Watchlist"
+        onSelect={setSelectedId}
+        onRemove={(id) => {
+          void removeItem(id);
+        }}
+      />
 
       <WatchlistSection
         chartsReady={chartsReady}

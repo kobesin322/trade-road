@@ -59,6 +59,45 @@ export function computePnlPercent(
   return ((avgEntryPrice - currentPrice) / avgEntryPrice) * 100;
 }
 
+export function computeRiskDollars(position: Position): number | null {
+  if (position.stop_loss_price === null || position.stop_loss_price <= 0) {
+    return null;
+  }
+
+  const perShare =
+    position.side === "long"
+      ? position.avg_entry_price - position.stop_loss_price
+      : position.stop_loss_price - position.avg_entry_price;
+
+  if (perShare <= 0) {
+    return null;
+  }
+
+  return perShare * position.quantity;
+}
+
+export function computeRiskRewardRatio(position: Position): number | null {
+  if (position.stop_loss_price === null || position.target_price === null) {
+    return null;
+  }
+
+  const riskPerShare =
+    position.side === "long"
+      ? position.avg_entry_price - position.stop_loss_price
+      : position.stop_loss_price - position.avg_entry_price;
+
+  const rewardPerShare =
+    position.side === "long"
+      ? position.target_price - position.avg_entry_price
+      : position.avg_entry_price - position.target_price;
+
+  if (riskPerShare <= 0 || rewardPerShare <= 0) {
+    return null;
+  }
+
+  return rewardPerShare / riskPerShare;
+}
+
 export function computePosition(position: Position, sidePool: number): ComputedPosition {
   const market_value = computeMarketValue(position.quantity, position.current_price);
   const unrealized_pnl = computeUnrealizedPnl(
@@ -73,6 +112,10 @@ export function computePosition(position: Position, sidePool: number): ComputedP
     position.current_price,
   );
   const percent_of_pool = sidePool > 0 ? (market_value / sidePool) * 100 : 0;
+  const risk_dollars = computeRiskDollars(position);
+  const risk_pct_of_pool =
+    risk_dollars !== null && sidePool > 0 ? (risk_dollars / sidePool) * 100 : null;
+  const risk_reward_ratio = computeRiskRewardRatio(position);
 
   return {
     ...position,
@@ -80,6 +123,9 @@ export function computePosition(position: Position, sidePool: number): ComputedP
     unrealized_pnl,
     pnl_percent,
     percent_of_pool,
+    risk_dollars,
+    risk_pct_of_pool,
+    risk_reward_ratio,
   };
 }
 

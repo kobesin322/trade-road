@@ -36,6 +36,7 @@ import {
 } from "@/components/ls-portfolio/ls-portfolio-modals";
 import { BetaReferenceModal } from "@/components/ls-portfolio/beta-reference-modal";
 import { PortfolioDayConditionPanel } from "@/components/ls-portfolio/portfolio-day-condition-panel";
+import { PortfolioSummaryPanel } from "@/components/ls-portfolio/portfolio-summary-panel";
 import { PortfolioWeightedBetaPanel } from "@/components/ls-portfolio/portfolio-weighted-beta-panel";
 import {
   formatOverviewDayLabel,
@@ -53,15 +54,18 @@ import {
   formatEventSummary,
   formatPercent,
 } from "@/lib/ls-portfolio";
-import type { ComputedPosition, PortfolioDayCondition, PortfolioSnapshot, PositionSide } from "@/lib/ls-portfolio-types";
+import type { ComputedPosition, PortfolioDayCondition, PortfolioSnapshot, PositionBookType, PositionSide } from "@/lib/ls-portfolio-types";
+import { BOOK_TYPE_LABELS } from "@/lib/ls-portfolio-types";
 import type { BetaReferenceSummary } from "@/lib/ls-portfolio-beta-reference";
 import { dayConditionHasContent, portfolioToDayCondition } from "@/lib/portfolio-day-condition";
 import { cn } from "@/lib/utils";
 
 type SideFilter = "all" | PositionSide;
-type PortfolioTab = "book" | "condition";
+type BookFilter = "all" | PositionBookType;
+type PortfolioTab = "summary" | "book" | "condition";
 
 const PORTFOLIO_TABS: { id: PortfolioTab; label: string }[] = [
+  { id: "summary", label: "Summary" },
   { id: "book", label: "L/S Book" },
   { id: "condition", label: "Day condition" },
 ];
@@ -105,6 +109,7 @@ export function LSPortfolioDashboard({
     null,
   );
   const [sideFilter, setSideFilter] = useState<SideFilter>("all");
+  const [bookFilter, setBookFilter] = useState<BookFilter>("all");
   const [search, setSearch] = useState("");
   const [savingId, setSavingId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
@@ -118,8 +123,9 @@ export function LSPortfolioDashboard({
   const [betaRefOpen, setBetaRefOpen] = useState(false);
   const [betaSummary, setBetaSummary] = useState<BetaReferenceSummary | null>(null);
   const [betaLoading, setBetaLoading] = useState(false);
-  const [portfolioTab, setPortfolioTab] = useState<PortfolioTab>("book");
+  const [portfolioTab, setPortfolioTab] = useState<PortfolioTab>("summary");
   const [conditionSaving, setConditionSaving] = useState(false);
+  const [summaryRefreshToken, setSummaryRefreshToken] = useState(0);
 
   const showToast = useCallback((message: string, tone: "success" | "error" | "info" = "info") => {
     setToast({ message, tone });
@@ -172,12 +178,15 @@ export function LSPortfolioDashboard({
       if (sideFilter !== "all" && p.side !== sideFilter) {
         return false;
       }
+      if (bookFilter !== "all" && p.book_type !== bookFilter) {
+        return false;
+      }
       if (q && !p.symbol.includes(q)) {
         return false;
       }
       return true;
     });
-  }, [computed, search, sideFilter]);
+  }, [computed, search, sideFilter, bookFilter]);
 
   async function mutate(url: string, init?: RequestInit, successMsg?: string) {
     setActionLoading(true);
@@ -189,6 +198,7 @@ export function LSPortfolioDashboard({
       }
       setSnapshot(data);
       onSnapshotDatesChange?.(data.snapshot_dates);
+      setSummaryRefreshToken((v) => v + 1);
       if (successMsg) {
         showToast(successMsg, "success");
       }
@@ -271,6 +281,19 @@ export function LSPortfolioDashboard({
     } finally {
       setSavingId(null);
     }
+  }
+
+  async function toggleBookType(position: ComputedPosition) {
+    const next: PositionBookType = position.book_type === "core" ? "tactical" : "core";
+    await mutate(
+      `/api/ls-portfolio/positions/${position.id}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: withDate({ book_type: next }),
+      },
+      `${position.symbol} moved to ${BOOK_TYPE_LABELS[next]}.`,
+    );
   }
 
   async function deletePosition(position: ComputedPosition) {
@@ -383,7 +406,7 @@ export function LSPortfolioDashboard({
         </Card>
       </div>
 
-      <nav className="grid grid-cols-2 gap-2 rounded-[1.25rem] border border-white/10 bg-black/30 p-2">
+      <nav className="grid grid-cols-3 gap-2 rounded-[1.25rem] border border-white/10 bg-black/30 p-2">
         {PORTFOLIO_TABS.map((tab) => (
           <button
             key={tab.id}
@@ -394,7 +417,9 @@ export function LSPortfolioDashboard({
               portfolioTab === tab.id
                 ? tab.id === "condition"
                   ? "bg-rose-400/20 text-rose-50 shadow-[0_0_18px_rgba(251,113,133,0.2)]"
-                  : "bg-cyan-300 text-slate-950 shadow-[0_0_18px_rgba(34,211,238,0.25)]"
+                  : tab.id === "summary"
+                    ? "bg-amber-300/90 text-slate-950 shadow-[0_0_18px_rgba(251,191,36,0.25)]"
+                    : "bg-cyan-300 text-slate-950 shadow-[0_0_18px_rgba(34,211,238,0.25)]"
                 : "text-zinc-400 hover:bg-white/10 hover:text-white",
             )}
           >
@@ -406,7 +431,9 @@ export function LSPortfolioDashboard({
         ))}
       </nav>
 
-      {portfolioTab === "condition" ? (
+      {portfolioTab === "summary" ? (
+        <PortfolioSummaryPanel selectedDate={selectedDate} onRefreshToken={summaryRefreshToken} />
+      ) : portfolioTab === "condition" ? (
         <PortfolioDayConditionPanel
           portfolio={snapshot.portfolio}
           selectedDate={selectedDate}
@@ -560,6 +587,25 @@ export function LSPortfolioDashboard({
                     {filter}
                   </button>
                 ))}
+                {(["all", "core", "tactical"] as const).map((filter) => (
+                  <button
+                    key={filter}
+                    type="button"
+                    onClick={() => setBookFilter(filter)}
+                    className={cn(
+                      "rounded-full border px-3 py-1.5 text-xs font-bold uppercase tracking-[0.12em]",
+                      bookFilter === filter
+                        ? filter === "core"
+                          ? "border-amber-400/50 bg-amber-500/15 text-amber-100"
+                          : filter === "tactical"
+                            ? "border-violet-400/50 bg-violet-500/15 text-violet-100"
+                            : "border-cyan-400/50 bg-cyan-500/15 text-cyan-100"
+                        : "border-white/10 text-zinc-500",
+                    )}
+                  >
+                    {filter === "all" ? "all books" : filter}
+                  </button>
+                ))}
               </div>
             </div>
             <label className="relative mt-2 block max-w-xs">
@@ -585,15 +631,17 @@ export function LSPortfolioDashboard({
                 loading={actionLoading}
               />
             ) : (
-              <table className="w-full min-w-[880px] text-left text-sm">
+              <table className="w-full min-w-[1020px] text-left text-sm">
                 <thead>
                   <tr className="border-b border-white/10 text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">
                     <th className="px-2 py-2">Symbol</th>
+                    <th className="px-2 py-2">Book</th>
                     <th className="px-2 py-2">Qty</th>
                     <th className="px-2 py-2">Entry</th>
                     <th className="px-2 py-2">Current</th>
                     <th className="px-2 py-2">MV</th>
                     <th className="px-2 py-2">P&L</th>
+                    <th className="px-2 py-2">Risk</th>
                     <th className="px-2 py-2">% Pool</th>
                     <th className="px-2 py-2">Stop</th>
                     <th className="px-2 py-2">Actions</th>
@@ -618,6 +666,22 @@ export function LSPortfolioDashboard({
                           )}
                           {position.symbol}
                         </span>
+                      </td>
+                      <td className="px-2 py-3">
+                        <button
+                          type="button"
+                          disabled={!canUsePersonalJournal || actionLoading}
+                          onClick={() => void toggleBookType(position)}
+                          className={cn(
+                            "rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] transition hover:opacity-80",
+                            position.book_type === "core"
+                              ? "border-amber-400/40 bg-amber-500/15 text-amber-100"
+                              : "border-violet-400/40 bg-violet-500/15 text-violet-100",
+                          )}
+                          title="Click to toggle Core / Tactical"
+                        >
+                          {BOOK_TYPE_LABELS[position.book_type]}
+                        </button>
                       </td>
                       <td className="px-2 py-3">
                         <InlineNum
@@ -647,6 +711,20 @@ export function LSPortfolioDashboard({
                         <div className="text-[10px] font-normal opacity-70">
                           {formatPercent(position.pnl_percent)}
                         </div>
+                      </td>
+                      <td className="px-2 py-3 font-mono tabular-nums">
+                        {position.risk_dollars !== null ? (
+                          <>
+                            <span className="text-rose-200">{formatCurrency(position.risk_dollars)}</span>
+                            {position.risk_pct_of_pool !== null ? (
+                              <div className="text-[10px] text-zinc-500">
+                                {formatPercent(position.risk_pct_of_pool, 1)}
+                              </div>
+                            ) : null}
+                          </>
+                        ) : (
+                          <span className="text-zinc-600">—</span>
+                        )}
                       </td>
                       <td className="px-2 py-3 font-mono text-zinc-400">
                         {formatPercent(position.percent_of_pool, 1)}

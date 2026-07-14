@@ -10,6 +10,26 @@ function hasSupabaseAuthCookies(request: NextRequest) {
   );
 }
 
+function isTransientAuthError(error: unknown) {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+  const candidate = error as { name?: string; status?: number; message?: string };
+  if (candidate.name === "AbortError") {
+    return true;
+  }
+  if (candidate.status === 0) {
+    return true;
+  }
+  const message = candidate.message?.toLowerCase() ?? "";
+  return (
+    message.includes("aborted") ||
+    message.includes("fetch failed") ||
+    message.includes("network") ||
+    message.includes("timeout")
+  );
+}
+
 function clearSupabaseAuthCookies(request: NextRequest, response: NextResponse) {
   for (const cookie of request.cookies.getAll()) {
     if (cookie.name.startsWith("sb-") && cookie.name.includes("auth-token")) {
@@ -89,10 +109,16 @@ export async function updateSession(request: NextRequest) {
   try {
     const { data, error } = await supabase.auth.getUser();
     if (error) {
+      if (isTransientAuthError(error)) {
+        return supabaseResponse;
+      }
       return unauthenticatedResponse(request, isAuthPath);
     }
     user = data.user;
-  } catch {
+  } catch (error) {
+    if (isTransientAuthError(error)) {
+      return supabaseResponse;
+    }
     return unauthenticatedResponse(request, isAuthPath);
   }
 

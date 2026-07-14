@@ -1,21 +1,18 @@
 import { NextResponse } from "next/server";
 
-import { findWatchlistItem } from "@/lib/market-data/symbols";
+import { resolveWatchlistItem } from "@/lib/market-data/resolve-watchlist";
 import { fetchYahooOHLCV } from "@/lib/market-data/yahoo-chart";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const id = searchParams.get("id");
+  const symbol = searchParams.get("symbol");
   const range = searchParams.get("range") ?? "5d";
   const interval = searchParams.get("interval") ?? "15m";
 
-  if (!id) {
-    return NextResponse.json({ error: "Missing watchlist id." }, { status: 400 });
-  }
-
-  const item = findWatchlistItem(id);
+  const item = resolveWatchlistItem({ id, symbol });
   if (!item) {
-    return NextResponse.json({ error: `Unknown watchlist id: ${id}` }, { status: 404 });
+    return NextResponse.json({ error: "Missing or unknown watchlist symbol." }, { status: 400 });
   }
 
   try {

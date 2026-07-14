@@ -19,6 +19,7 @@ import {
   type JournalStrategy,
   type TradeScreenshot,
 } from "@/lib/journal-constants";
+import { useCustomWatchlist } from "@/lib/hooks/use-custom-watchlist";
 import type { Trade, TradeOutcome } from "@/lib/trades";
 import { cn } from "@/lib/utils";
 
@@ -82,6 +83,7 @@ export function JournalEntryForm({
   onSaved,
   onDeleted,
 }: JournalEntryFormProps) {
+  const { items: customWatchlist } = useCustomWatchlist();
   const [form, setForm] = useState<JournalEntryInput>(() =>
     trade ? tradeToForm(trade) : emptyForm(),
   );
@@ -104,6 +106,21 @@ export function JournalEntryForm({
         dataUrl: shot.dataUrl,
       })),
     [pendingScreenshots],
+  );
+
+  const pairOptions = useMemo(
+    () => [
+      ...JOURNAL_PAIR_OPTIONS,
+      ...(customWatchlist.length
+        ? [
+            {
+              group: "Your Watchlist",
+              symbols: customWatchlist.map((item) => item.yahooSymbol),
+            },
+          ]
+        : []),
+    ],
+    [customWatchlist],
   );
 
   function updateField<K extends keyof JournalEntryInput>(key: K, value: JournalEntryInput[K]) {
@@ -190,7 +207,7 @@ export function JournalEntryForm({
           <div>
             <CardTitle>{mode === "create" ? "Create journal" : "Edit journal"}</CardTitle>
             <p className="mt-1 text-sm text-zinc-400">
-              One journal entry per trade. Pair options match the Charts watchlist.
+              One journal entry per trade. Pair options include your saved watchlist tickers.
             </p>
           </div>
           <Button type="button" onClick={onCancel} className="h-9 w-9 bg-white/5 p-0 text-zinc-200">
@@ -206,7 +223,7 @@ export function JournalEntryForm({
             onChange={(event) => updateField("pair", event.target.value)}
             className="h-11 rounded-2xl border border-white/10 bg-zinc-950 px-3 text-sm font-semibold text-white outline-none focus:border-cyan-300/60"
           >
-            {JOURNAL_PAIR_OPTIONS.map((group) => (
+            {pairOptions.map((group) => (
               <optgroup key={group.group} label={group.group}>
                 {group.symbols.map((symbol) => (
                   <option key={symbol} value={symbol}>

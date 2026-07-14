@@ -183,6 +183,7 @@ export type AddPositionModalProps = {
 
 export function AddPositionModal({ open, onClose, onSubmit, loading }: AddPositionModalProps) {
   const [side, setSide] = useState<"long" | "short">("long");
+  const [bookType, setBookType] = useState<"core" | "tactical">("tactical");
   const [symbol, setSymbol] = useState("");
   const [quantity, setQuantity] = useState("");
   const [entry, setEntry] = useState("");
@@ -194,6 +195,7 @@ export function AddPositionModal({ open, onClose, onSubmit, loading }: AddPositi
   async function handleSubmit() {
     await onSubmit({
       side,
+      book_type: bookType,
       symbol,
       quantity: Number(quantity),
       avg_entry_price: Number(entry),
@@ -218,6 +220,23 @@ export function AddPositionModal({ open, onClose, onSubmit, loading }: AddPositi
                 side === value && value === "long" && "border-emerald-400/50 bg-emerald-500/15 text-emerald-100",
                 side === value && value === "short" && "border-rose-400/50 bg-rose-500/15 text-rose-100",
                 side !== value && "border-white/10 text-zinc-400",
+              )}
+            >
+              {value}
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-2">
+          {(["core", "tactical"] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setBookType(value)}
+              className={cn(
+                "flex-1 rounded-2xl border px-4 py-3 text-sm font-black uppercase tracking-[0.14em] transition",
+                bookType === value && value === "core" && "border-amber-400/50 bg-amber-500/15 text-amber-100",
+                bookType === value && value === "tactical" && "border-violet-400/50 bg-violet-500/15 text-violet-100",
+                bookType !== value && "border-white/10 text-zinc-400",
               )}
             >
               {value}

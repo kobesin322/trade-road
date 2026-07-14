@@ -75,3 +75,8 @@ export const MARKET_WATCHLIST: WatchlistItem[] = [...CRYPTO_WATCHLIST, ...STOCK_
 export function findWatchlistItem(id: string) {
   return MARKET_WATCHLIST.find((item) => item.id === id);
 }
+
+export function findWatchlistItemBySymbol(symbol: string) {
+  const normalized = symbol.trim().toUpperCase();
+  return MARKET_WATCHLIST.find((item) => item.yahooSymbol.toUpperCase() === normalized);
+}

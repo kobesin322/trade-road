@@ -9,6 +9,9 @@ import {
   type TradeScreenshot,
 } from "@/lib/journal-constants";
 import {
+  listUserWatchlistSymbols,
+} from "@/lib/watchlist-ticker-service";
+import {
   getTradeForUser,
   rowToTradeRecord,
   type TradeRecord,
@@ -63,12 +66,20 @@ function assertValidStrategy(strategy: string): strategy is Trade["strategy"] {
   return isJournalStrategy(strategy);
 }
 
-function assertValidPair(pair: string) {
-  if (!isJournalPair(pair)) {
-    throw new TradeServiceError(
-      "pair must be one of the Charts watchlist symbols (BTC-USD, AAPL, etc.).",
-    );
+async function assertValidPair(pair: string, userId: string) {
+  const normalized = pair.trim();
+  if (isJournalPair(normalized)) {
+    return;
   }
+
+  const savedSymbols = await listUserWatchlistSymbols(userId);
+  if (savedSymbols.some((symbol) => symbol.toUpperCase() === normalized.toUpperCase())) {
+    return;
+  }
+
+  throw new TradeServiceError(
+    "pair must be one of the Charts watchlist symbols (BTC-USD, AAPL, etc.) or a saved custom ticker.",
+  );
 }
 
 function parseScreenshots(value: unknown): TradeScreenshot[] | undefined {
@@ -100,7 +111,6 @@ export function parseTradeInput(body: unknown): TradeInput {
   if (!candidate.pair?.trim()) {
     throw new TradeServiceError("pair is required.");
   }
-  assertValidPair(candidate.pair.trim());
 
   if (!candidate.date?.trim()) {
     throw new TradeServiceError("date is required.");
@@ -152,7 +162,6 @@ export function parseTradePatch(body: unknown): Partial<TradeInput> {
     if (!candidate.pair.trim()) {
       throw new TradeServiceError("pair cannot be empty.");
     }
-    assertValidPair(candidate.pair.trim());
     patch.pair = candidate.pair.trim();
   }
   if (candidate.date !== undefined) {
@@ -223,6 +232,7 @@ export async function listPersonalTrades(userId: string) {
 }
 
 export async function createPersonalTrade(userId: string, input: TradeInput) {
+  await assertValidPair(input.pair, userId);
   const db = getDb();
   const [row] = await db
     .insert(trades)
@@ -250,6 +260,10 @@ export async function updatePersonalTrade(
   tradeId: string,
   patch: Partial<TradeInput>,
 ) {
+  if (patch.pair !== undefined) {
+    await assertValidPair(patch.pair, userId);
+  }
+
   const db = getDb();
   const [row] = await db
     .update(trades)

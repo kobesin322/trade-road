@@ -39,6 +39,7 @@ export async function POST(request: Request) {
 
     const position = await insertPosition(snapshot.portfolio.id, {
       side,
+      book_type: body.book_type === "core" ? "core" : "tactical",
       symbol,
       quantity,
       avg_entry_price,

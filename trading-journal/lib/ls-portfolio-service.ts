@@ -61,7 +61,7 @@ export async function seedDemoPortfolio(userId: string, date?: string) {
   for (const seed of DEMO_LS_POSITIONS) {
     const position = await insertPosition(portfolio.id, {
       ...seed,
-      stop_loss_price: null,
+      stop_loss_price: seed.stop_loss_price ?? null,
       target_price: null,
       notes: null,
     });

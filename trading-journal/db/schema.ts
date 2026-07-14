@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   boolean,
   date,
+  integer,
   jsonb,
   numeric,
   pgEnum,
@@ -52,6 +53,27 @@ export const userPreferences = pgTable("user_preferences", {
 
 export type UserPreferencesRow = typeof userPreferences.$inferSelect;
 
+export const userWatchlistTickers = pgTable(
+  "user_watchlist_tickers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id").notNull(),
+    yahooSymbol: text("yahoo_symbol").notNull(),
+    label: text("label").notNull(),
+    tradingViewSymbol: text("trading_view_symbol").notNull(),
+    assetClass: text("asset_class").notNull(),
+    quoteType: text("quote_type"),
+    exchange: text("exchange"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [unique("user_watchlist_tickers_user_symbol_unique").on(table.userId, table.yahooSymbol)],
+);
+
+export type UserWatchlistTickerRow = typeof userWatchlistTickers.$inferSelect;
+export type UserWatchlistTickerInsert = typeof userWatchlistTickers.$inferInsert;
+
 export const dailyOverviews = pgTable(
   "daily_overviews",
   {
@@ -97,6 +119,7 @@ export type DailyOverviewRow = typeof dailyOverviews.$inferSelect;
 export type DailyOverviewInsert = typeof dailyOverviews.$inferInsert;
 
 export const positionSideEnum = pgEnum("position_side", ["long", "short"]);
+export const positionBookTypeEnum = pgEnum("position_book_type", ["core", "tactical"]);
 
 export const portfolios = pgTable(
   "portfolios",
@@ -129,6 +152,7 @@ export const positions = pgTable("positions", {
     .notNull()
     .references(() => portfolios.id, { onDelete: "cascade" }),
   side: positionSideEnum("side").notNull(),
+  bookType: positionBookTypeEnum("book_type").notNull().default("tactical"),
   symbol: text("symbol").notNull(),
   quantity: numeric("quantity").notNull(),
   avgEntryPrice: numeric("avg_entry_price").notNull(),

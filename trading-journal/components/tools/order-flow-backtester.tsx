@@ -22,12 +22,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { TradingViewMultiTimeframe } from "@/components/charts/trading-view-multi-timeframe";
 import { BouncyBallStrategyChart } from "@/components/charts/bouncy-ball-strategy-chart";
+import { TickerSearchPanel } from "@/components/charts/ticker-search-panel";
 import type { MarketOHLCVPayload } from "@/lib/market-data/yahoo-chart";
 import {
   CRYPTO_WATCHLIST,
   STOCK_WATCHLIST,
   type WatchlistItem,
 } from "@/lib/market-data/symbols";
+import { useCustomWatchlist } from "@/lib/hooks/use-custom-watchlist";
 import {
   enhanceOrderFlowBars,
   generateEnhancedSignals,
@@ -415,9 +417,11 @@ function exportSignals(signals: StrategySignal[], tickerSymbol: string) {
 
 function TickerSelector({
   selectedTickerId,
+  customWatchlist,
   onChange,
 }: {
   selectedTickerId: string;
+  customWatchlist: WatchlistItem[];
   onChange: (tickerId: string) => void;
 }) {
   return (
@@ -428,6 +432,15 @@ function TickerSelector({
         onChange={(event) => onChange(event.target.value)}
         className="h-11 rounded-2xl border border-white/10 bg-zinc-950 px-3 text-sm font-black text-white outline-none transition focus:border-cyan-300/60"
       >
+        {customWatchlist.length ? (
+          <optgroup label="Your Watchlist">
+            {customWatchlist.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.label} ({item.yahooSymbol})
+              </option>
+            ))}
+          </optgroup>
+        ) : null}
         <optgroup label="Crypto">
           {CRYPTO_WATCHLIST.map((item) => (
             <option key={item.id} value={item.id}>
@@ -495,6 +508,7 @@ function ActiveTickerBanner({
 }
 
 export function OrderFlowBacktester() {
+  const { items: customWatchlist } = useCustomWatchlist();
   const [selectedTickerId, setSelectedTickerId] = useState(DEFAULT_TICKER_ID);
   const [bars, setBars] = useState<OHLCVBar[]>([]);
   const [params, setParams] = useState<StrategyParams>(DEFAULT_STRATEGY_PARAMS);
@@ -507,9 +521,14 @@ export function OrderFlowBacktester() {
   const [showAllSignalsOnChart, setShowAllSignalsOnChart] = useState(false);
   const [selectedSignalIds, setSelectedSignalIds] = useState<string[]>([]);
 
+  const allTickers = useMemo(
+    () => [...customWatchlist, ...CRYPTO_WATCHLIST, ...STOCK_WATCHLIST],
+    [customWatchlist],
+  );
+
   const selectedTicker = useMemo(
-    () => [...CRYPTO_WATCHLIST, ...STOCK_WATCHLIST].find((item) => item.id === selectedTickerId) ?? CRYPTO_WATCHLIST[0],
-    [selectedTickerId],
+    () => allTickers.find((item) => item.id === selectedTickerId) ?? CRYPTO_WATCHLIST[0],
+    [allTickers, selectedTickerId],
   );
 
   const loadTicker = useCallback(async (tickerId: string) => {
@@ -517,12 +536,21 @@ export function OrderFlowBacktester() {
     setLoadError(null);
 
     try {
-      const response = await fetch(
-        `/api/market-data/ohlcv?id=${encodeURIComponent(tickerId)}&range=${STRATEGY_LAB_CHART_RANGE}&interval=${STRATEGY_LAB_CHART_INTERVAL}`,
-        {
+      const item = allTickers.find((entry) => entry.id === tickerId);
+      const query = new URLSearchParams({
+        range: STRATEGY_LAB_CHART_RANGE,
+        interval: STRATEGY_LAB_CHART_INTERVAL,
+      });
+
+      if (item) {
+        query.set("symbol", item.yahooSymbol);
+      } else {
+        query.set("id", tickerId);
+      }
+
+      const response = await fetch(`/api/market-data/ohlcv?${query.toString()}`, {
         cache: "no-store",
-      },
-      );
+      });
       const payload: unknown = await response.json();
 
       if (!response.ok) {
@@ -543,7 +571,7 @@ export function OrderFlowBacktester() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [allTickers]);
 
   useEffect(() => {
     if (dataSource === "csv") {
@@ -669,7 +697,15 @@ export function OrderFlowBacktester() {
                   </div>
                 </CardHeader>
                 <CardContent className="grid gap-3">
-                  <TickerSelector selectedTickerId={selectedTickerId} onChange={handleTickerChange} />
+                  <TickerSearchPanel
+                    selectedId={selectedTickerId}
+                    onSelect={(id) => handleTickerChange(id)}
+                  />
+                  <TickerSelector
+                    selectedTickerId={selectedTickerId}
+                    customWatchlist={customWatchlist}
+                    onChange={handleTickerChange}
+                  />
                   <label className="grid cursor-pointer gap-3 rounded-3xl border border-dashed border-cyan-300/25 bg-cyan-300/10 p-5 text-center transition hover:border-cyan-300/50">
                     <FileUp className="mx-auto h-8 w-8 text-cyan-100" />
                     <span className="text-sm font-black text-white">Upload OHLCV CSV</span>
