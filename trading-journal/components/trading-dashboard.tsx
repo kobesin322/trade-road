@@ -14,6 +14,7 @@ import {
 import {
   ArrowUpRight,
   BookOpen,
+  Calculator,
   CalendarDays,
   ChevronDown,
   ChevronLeft,
@@ -60,6 +61,7 @@ import { signOut } from "@/app/actions/auth";
 import { MarketChartsView } from "@/components/charts/market-charts-view";
 import { LSPortfolioDashboard } from "@/components/ls-portfolio/ls-portfolio-dashboard";
 import { OrderFlowBacktester } from "@/components/tools/order-flow-backtester";
+import { RiskCalculatorUtility } from "@/components/tools/risk-calculator-utility";
 import { DailyOverviewPanel } from "@/components/journal/daily-overview-panel";
 import { ScreenshotGallery } from "@/components/journal/screenshot-gallery";
 import { formatOverviewDayLabel } from "@/components/journal/overview-date-picker";
@@ -82,7 +84,7 @@ import type { DailyOverview } from "@/lib/daily-overview-types";
 import { buildOverviewsByDate, overviewHasContent } from "@/lib/daily-overview-utils";
 import { countMistakes } from "@/lib/trading-mistakes";
 
-const mainViews = ["Dashboard", "Journal", "Portfolio", "Charts", "Strategy Lab", "Calendar"] as const;
+const mainViews = ["Dashboard", "Journal", "Portfolio", "Charts", "Strategy Lab", "Utilities", "Calendar"] as const;
 
 const toolLinks: Array<{
   href: string;
@@ -90,6 +92,12 @@ const toolLinks: Array<{
   description: string;
   icon: LucideIcon;
 }> = [
+  {
+    href: "/?view=Utilities",
+    title: "Risk Calculator",
+    description: "Size, R:R, journal link",
+    icon: Calculator,
+  },
   {
     href: "/?view=Strategy%20Lab",
     title: "Strategy Lab",
@@ -137,6 +145,7 @@ const mainViewConfig: Record<
   Portfolio: { icon: WalletCards, description: "Long / short book tracking" },
   Charts: { icon: LineChart, description: "Multi-timeframe market view" },
   "Strategy Lab": { icon: FlaskConical, description: "CVD bounce backtester" },
+  Utilities: { icon: Calculator, description: "Risk sizing and R:R tools" },
   Calendar: { icon: CalendarDays, description: "Trades, overviews, snapshots" },
 };
 
@@ -934,6 +943,19 @@ export function TradingDashboard({
             {activeView === "Charts" && <MarketChartsView chartsReady={chartsReady} />}
 
             {activeView === "Strategy Lab" && <OrderFlowBacktester />}
+
+            {activeView === "Utilities" && (
+              <RiskCalculatorUtility
+                canUsePersonalJournal={canUsePersonalJournal}
+                onTradeCreated={(trade) => {
+                  selectTrade(trade);
+                  setActiveView("Journal");
+                  setJournalSection("trades");
+                  setJournalEditorMode("closed");
+                  router.refresh();
+                }}
+              />
+            )}
 
             {activeView === "Calendar" && (
               <CalendarView
