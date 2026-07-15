@@ -61,8 +61,31 @@ export type JournalEntryInput = {
   profitPercent: number;
   profitAmount: number;
   position: "LONG" | "SHORT";
+  stopLoss?: number | null;
+  takeProfit?: number | null;
+  riskRewardRatio?: number | null;
+  levelPushes: TradeLevelPushInput[];
   journalHtml: string;
   screenshots: TradeScreenshot[];
+};
+
+export type TradeLevelPushLevelType = "SL" | "TP";
+
+export type TradeLevelPush = {
+  id: string;
+  levelType: TradeLevelPushLevelType;
+  price: number;
+  pushedAt: string;
+  note?: string | null;
+};
+
+export type TradeLevelPushInput = {
+  id?: string;
+  clientId?: string;
+  levelType: TradeLevelPushLevelType;
+  price: number;
+  pushedAt: string;
+  note?: string | null;
 };
 
 export type JournalScreenshotUpload = {

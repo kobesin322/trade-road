@@ -33,6 +33,10 @@ function toTradeInput(entry: JournalEntryInput): TradeInput {
     strategy: entry.strategy,
     position: entry.position,
     notes: null,
+    stopLoss: entry.stopLoss ?? null,
+    takeProfit: entry.takeProfit ?? null,
+    riskRewardRatio: entry.riskRewardRatio ?? null,
+    levelPushes: entry.levelPushes,
     journalHtml: entry.journalHtml || null,
     screenshots: entry.screenshots,
     chartData: [],
@@ -57,6 +61,17 @@ function validateJournalEntry(
   }
   if (uploads.length + entry.screenshots.length > 6) {
     return "You can attach up to 6 screenshots per journal entry.";
+  }
+  for (const [index, push] of entry.levelPushes.entries()) {
+    if (push.levelType !== "SL" && push.levelType !== "TP") {
+      return `Push record ${index + 1} must be SL or TP.`;
+    }
+    if (!Number.isFinite(push.price)) {
+      return `Push record ${index + 1} needs a valid price.`;
+    }
+    if (!push.pushedAt.trim()) {
+      return `Push record ${index + 1} needs a push time.`;
+    }
   }
   return null;
 }

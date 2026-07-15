@@ -107,7 +107,7 @@ export async function getDailyOverviewRecordByDate(
 
   return {
     ...overview,
-    linkedTrades: linkedTrades.map(rowToTrade),
+    linkedTrades: linkedTrades.map((row) => rowToTrade(row)),
   };
 }
 

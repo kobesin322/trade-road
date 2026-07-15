@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 
 import { deleteJournalEntry, saveJournalEntry } from "@/app/actions/journal";
 import { ScreenshotGallery } from "@/components/journal/screenshot-gallery";
+import { JournalLevelPushesEditor } from "@/components/journal/journal-level-pushes-editor";
 import { RichTextEditor } from "@/components/journal/rich-text-editor";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -47,6 +48,10 @@ function emptyForm(): JournalEntryInput {
     profitPercent: 0,
     profitAmount: 0,
     position: "LONG",
+    stopLoss: null,
+    takeProfit: null,
+    riskRewardRatio: null,
+    levelPushes: [],
     journalHtml: "",
     screenshots: [],
   };
@@ -62,6 +67,18 @@ function tradeToForm(trade: Trade): JournalEntryInput {
     profitPercent: trade.profitPercent,
     profitAmount: trade.profitAmount,
     position: trade.position,
+    stopLoss: trade.stopLoss ?? null,
+    takeProfit: trade.takeProfit ?? null,
+    riskRewardRatio: trade.riskRewardRatio ?? null,
+    levelPushes:
+      trade.levelPushes?.map((push) => ({
+        id: push.id,
+        clientId: push.id,
+        levelType: push.levelType,
+        price: push.price,
+        pushedAt: push.pushedAt,
+        note: push.note ?? "",
+      })) ?? [],
     journalHtml: trade.journalHtml ?? "",
     screenshots: trade.screenshots ?? [],
   };
@@ -306,6 +323,62 @@ export function JournalEntryForm({
             className="bg-zinc-950"
           />
         </label>
+
+        <div className="grid gap-3 sm:grid-cols-3">
+          <label className="grid gap-1 text-sm font-semibold text-zinc-300">
+            SL (optional)
+            <Input
+              type="number"
+              step="any"
+              value={form.stopLoss ?? ""}
+              onChange={(event) =>
+                updateField(
+                  "stopLoss",
+                  event.target.value === "" ? null : Number(event.target.value),
+                )
+              }
+              className="bg-zinc-950 font-mono"
+              placeholder="Stop loss"
+            />
+          </label>
+          <label className="grid gap-1 text-sm font-semibold text-zinc-300">
+            TP (optional)
+            <Input
+              type="number"
+              step="any"
+              value={form.takeProfit ?? ""}
+              onChange={(event) =>
+                updateField(
+                  "takeProfit",
+                  event.target.value === "" ? null : Number(event.target.value),
+                )
+              }
+              className="bg-zinc-950 font-mono"
+              placeholder="Take profit"
+            />
+          </label>
+          <label className="grid gap-1 text-sm font-semibold text-zinc-300">
+            RR (optional)
+            <Input
+              type="number"
+              step="0.1"
+              value={form.riskRewardRatio ?? ""}
+              onChange={(event) =>
+                updateField(
+                  "riskRewardRatio",
+                  event.target.value === "" ? null : Number(event.target.value),
+                )
+              }
+              className="bg-zinc-950 font-mono"
+              placeholder="Risk reward"
+            />
+          </label>
+        </div>
+
+        <JournalLevelPushesEditor
+          pushes={form.levelPushes}
+          onChange={(levelPushes) => updateField("levelPushes", levelPushes)}
+        />
 
         <div className="grid gap-2">
           <div className="flex items-center justify-between gap-2">

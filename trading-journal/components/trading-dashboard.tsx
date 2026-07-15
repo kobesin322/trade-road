@@ -1634,6 +1634,54 @@ function TradeDetail({
           <div className="mt-1 text-sm font-semibold text-cyan-100">{trade.strategy}</div>
         </div>
 
+        {trade.stopLoss != null || trade.takeProfit != null || trade.riskRewardRatio != null ? (
+          <div className="mt-4 grid grid-cols-3 gap-3">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+              <div className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">SL</div>
+              <div className="mt-1 font-mono text-sm font-black text-rose-200">
+                {trade.stopLoss != null ? trade.stopLoss : "—"}
+              </div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+              <div className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">TP</div>
+              <div className="mt-1 font-mono text-sm font-black text-emerald-200">
+                {trade.takeProfit != null ? trade.takeProfit : "—"}
+              </div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+              <div className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">RR</div>
+              <div className="mt-1 font-mono text-sm font-black text-cyan-100">
+                {trade.riskRewardRatio != null ? `${trade.riskRewardRatio}R` : "—"}
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {(trade.levelPushes?.length ?? 0) > 0 ? (
+          <div className="mt-4 grid gap-2">
+            <div className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">
+              SL / TP push history
+            </div>
+            <div className="grid gap-2">
+              {trade.levelPushes?.map((push) => (
+                <div
+                  key={push.id}
+                  className="rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-sm"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <Badge tone={push.levelType === "SL" ? "loss" : "win"}>{push.levelType}</Badge>
+                    <span className="font-mono font-black text-white">{push.price}</span>
+                  </div>
+                  <div className="mt-1 text-xs text-zinc-500">
+                    {format(parseISO(push.pushedAt), "MMM d, yyyy HH:mm")}
+                  </div>
+                  {push.note ? <div className="mt-1 text-xs text-zinc-400">{push.note}</div> : null}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
         {(trade.screenshots?.length ?? 0) > 0 ? (
           <div className="mt-4 grid gap-2">
             <div className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">Screenshots</div>

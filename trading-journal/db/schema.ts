@@ -29,6 +29,9 @@ export const trades = pgTable("trades", {
   strategy: text("strategy").notNull(),
   position: text("position"),
   notes: text("notes"),
+  stopLoss: numeric("stop_loss"),
+  takeProfit: numeric("take_profit"),
+  riskRewardRatio: numeric("risk_reward_ratio"),
   journalHtml: text("journal_html"),
   screenshots: jsonb("screenshots")
     .$type<TradeScreenshot[]>()
@@ -44,6 +47,22 @@ export const trades = pgTable("trades", {
 
 export type TradeRow = typeof trades.$inferSelect;
 export type TradeInsert = typeof trades.$inferInsert;
+
+export const tradeLevelPushes = pgTable("trade_level_pushes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tradeId: uuid("trade_id").notNull(),
+  userId: uuid("user_id").notNull(),
+  levelType: text("level_type").notNull(),
+  price: numeric("price").notNull(),
+  pushedAt: timestamp("pushed_at", { withTimezone: true }).notNull().defaultNow(),
+  note: text("note"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type TradeLevelPushRow = typeof tradeLevelPushes.$inferSelect;
+export type TradeLevelPushInsert = typeof tradeLevelPushes.$inferInsert;
 
 export const userPreferences = pgTable("user_preferences", {
   userId: uuid("user_id").primaryKey(),

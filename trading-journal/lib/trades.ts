@@ -1,4 +1,4 @@
-import type { JournalStrategy, TradeScreenshot } from "@/lib/journal-constants";
+import type { JournalStrategy, TradeScreenshot, TradeLevelPush } from "@/lib/journal-constants";
 
 import { eachDayOfInterval, endOfMonth, format, startOfMonth } from "date-fns";
 
@@ -14,6 +14,10 @@ export type Trade = {
   strategy: JournalStrategy;
   position: "LONG" | "SHORT";
   notes?: string | null;
+  stopLoss?: number | null;
+  takeProfit?: number | null;
+  riskRewardRatio?: number | null;
+  levelPushes?: TradeLevelPush[];
   journalHtml?: string | null;
   screenshots?: TradeScreenshot[];
   chartData: {

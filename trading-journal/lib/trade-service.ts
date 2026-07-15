@@ -1,11 +1,12 @@
 import { and, asc, eq } from "drizzle-orm";
 
-import { trades } from "@/db/schema";
+import { trades, tradeLevelPushes } from "@/db/schema";
 import { getSessionUser, isAdminDemoUser } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import {
   isJournalPair,
   isJournalStrategy,
+  type TradeLevelPushInput,
   type TradeScreenshot,
 } from "@/lib/journal-constants";
 import {
@@ -13,6 +14,7 @@ import {
 } from "@/lib/watchlist-ticker-service";
 import {
   getTradeForUser,
+  listLevelPushesForTradeIds,
   rowToTradeRecord,
   type TradeRecord,
 } from "@/lib/trade-db";
@@ -27,6 +29,10 @@ export type TradeInput = {
   strategy: Trade["strategy"];
   position?: Trade["position"] | null;
   notes?: string | null;
+  stopLoss?: number | null;
+  takeProfit?: number | null;
+  riskRewardRatio?: number | null;
+  levelPushes?: TradeLevelPushInput[];
   journalHtml?: string | null;
   screenshots?: TradeScreenshot[];
   chartData?: Trade["chartData"];
@@ -80,6 +86,60 @@ async function assertValidPair(pair: string, userId: string) {
   throw new TradeServiceError(
     "pair must be one of the Charts watchlist symbols (BTC-USD, AAPL, etc.) or a saved custom ticker.",
   );
+}
+
+function parseOptionalNumber(value: unknown, field: string) {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new TradeServiceError(`${field} must be a number.`);
+  }
+
+  return value;
+}
+
+function parseLevelPushes(value: unknown): TradeLevelPushInput[] | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (!Array.isArray(value)) {
+    throw new TradeServiceError("levelPushes must be an array.");
+  }
+
+  return value.map((item, index) => {
+    if (!item || typeof item !== "object") {
+      throw new TradeServiceError(`levelPushes[${index}] must be an object.`);
+    }
+
+    const candidate = item as Partial<TradeLevelPushInput>;
+    if (candidate.levelType !== "SL" && candidate.levelType !== "TP") {
+      throw new TradeServiceError(`levelPushes[${index}].levelType must be SL or TP.`);
+    }
+    if (typeof candidate.price !== "number" || !Number.isFinite(candidate.price)) {
+      throw new TradeServiceError(`levelPushes[${index}].price must be a number.`);
+    }
+
+    const pushedAt = candidate.pushedAt?.trim();
+    if (!pushedAt) {
+      throw new TradeServiceError(`levelPushes[${index}].pushedAt is required.`);
+    }
+
+    if (Number.isNaN(Date.parse(pushedAt))) {
+      throw new TradeServiceError(`levelPushes[${index}].pushedAt must be a valid datetime.`);
+    }
+
+    return {
+      id: candidate.id,
+      clientId: candidate.clientId,
+      levelType: candidate.levelType,
+      price: candidate.price,
+      pushedAt: new Date(pushedAt).toISOString(),
+      note: candidate.note?.trim() || null,
+    };
+  });
 }
 
 function parseScreenshots(value: unknown): TradeScreenshot[] | undefined {
@@ -144,6 +204,10 @@ export function parseTradeInput(body: unknown): TradeInput {
     strategy: candidate.strategy,
     position: candidate.position ?? null,
     notes: candidate.notes ?? null,
+    stopLoss: parseOptionalNumber(candidate.stopLoss, "stopLoss"),
+    takeProfit: parseOptionalNumber(candidate.takeProfit, "takeProfit"),
+    riskRewardRatio: parseOptionalNumber(candidate.riskRewardRatio, "riskRewardRatio"),
+    levelPushes: parseLevelPushes(candidate.levelPushes) ?? [],
     journalHtml: candidate.journalHtml ?? null,
     screenshots: parseScreenshots(candidate.screenshots) ?? [],
     chartData: chartData as Trade["chartData"],
@@ -203,6 +267,18 @@ export function parseTradePatch(body: unknown): Partial<TradeInput> {
   if (candidate.journalHtml !== undefined) {
     patch.journalHtml = candidate.journalHtml ?? null;
   }
+  if (candidate.stopLoss !== undefined) {
+    patch.stopLoss = parseOptionalNumber(candidate.stopLoss, "stopLoss");
+  }
+  if (candidate.takeProfit !== undefined) {
+    patch.takeProfit = parseOptionalNumber(candidate.takeProfit, "takeProfit");
+  }
+  if (candidate.riskRewardRatio !== undefined) {
+    patch.riskRewardRatio = parseOptionalNumber(candidate.riskRewardRatio, "riskRewardRatio");
+  }
+  if (candidate.levelPushes !== undefined) {
+    patch.levelPushes = parseLevelPushes(candidate.levelPushes) ?? [];
+  }
   if (candidate.screenshots !== undefined) {
     patch.screenshots = parseScreenshots(candidate.screenshots) ?? [];
   }
@@ -220,6 +296,31 @@ export function parseTradePatch(body: unknown): Partial<TradeInput> {
   return patch;
 }
 
+async function syncTradeLevelPushes(
+  userId: string,
+  tradeId: string,
+  pushes: TradeLevelPushInput[],
+) {
+  const db = getDb();
+  await db.delete(tradeLevelPushes).where(eq(tradeLevelPushes.tradeId, tradeId));
+
+  if (!pushes.length) {
+    return;
+  }
+
+  await db.insert(tradeLevelPushes).values(
+    pushes.map((push, index) => ({
+      tradeId,
+      userId,
+      levelType: push.levelType,
+      price: String(push.price),
+      pushedAt: new Date(push.pushedAt),
+      note: push.note ?? null,
+      sortOrder: index,
+    })),
+  );
+}
+
 export async function listPersonalTrades(userId: string) {
   const db = getDb();
   const rows = await db
@@ -228,7 +329,8 @@ export async function listPersonalTrades(userId: string) {
     .where(eq(trades.userId, userId))
     .orderBy(asc(trades.date), asc(trades.pair));
 
-  return rows.map(rowToTradeRecord);
+  const pushesByTrade = await listLevelPushesForTradeIds(rows.map((row) => row.id));
+  return rows.map((row) => rowToTradeRecord(row, pushesByTrade.get(row.id) ?? []));
 }
 
 export async function createPersonalTrade(userId: string, input: TradeInput) {
@@ -246,13 +348,29 @@ export async function createPersonalTrade(userId: string, input: TradeInput) {
       strategy: input.strategy,
       position: input.position ?? null,
       notes: input.notes ?? null,
+      stopLoss: input.stopLoss === null || input.stopLoss === undefined ? null : String(input.stopLoss),
+      takeProfit:
+        input.takeProfit === null || input.takeProfit === undefined ? null : String(input.takeProfit),
+      riskRewardRatio:
+        input.riskRewardRatio === null || input.riskRewardRatio === undefined
+          ? null
+          : String(input.riskRewardRatio),
       journalHtml: input.journalHtml ?? null,
       screenshots: input.screenshots ?? [],
       chartData: input.chartData ?? [],
     })
     .returning();
 
-  return row ? rowToTradeRecord(row) : null;
+  if (!row) {
+    return null;
+  }
+
+  if (input.levelPushes !== undefined) {
+    await syncTradeLevelPushes(userId, row.id, input.levelPushes);
+  }
+
+  const pushesByTrade = await listLevelPushesForTradeIds([row.id]);
+  return rowToTradeRecord(row, pushesByTrade.get(row.id) ?? []);
 }
 
 export async function updatePersonalTrade(
@@ -280,6 +398,18 @@ export async function updatePersonalTrade(
       ...(patch.strategy !== undefined ? { strategy: patch.strategy } : {}),
       ...(patch.position !== undefined ? { position: patch.position ?? null } : {}),
       ...(patch.notes !== undefined ? { notes: patch.notes ?? null } : {}),
+      ...(patch.stopLoss !== undefined
+        ? { stopLoss: patch.stopLoss === null ? null : String(patch.stopLoss) }
+        : {}),
+      ...(patch.takeProfit !== undefined
+        ? { takeProfit: patch.takeProfit === null ? null : String(patch.takeProfit) }
+        : {}),
+      ...(patch.riskRewardRatio !== undefined
+        ? {
+            riskRewardRatio:
+              patch.riskRewardRatio === null ? null : String(patch.riskRewardRatio),
+          }
+        : {}),
       ...(patch.journalHtml !== undefined ? { journalHtml: patch.journalHtml ?? null } : {}),
       ...(patch.screenshots !== undefined ? { screenshots: patch.screenshots } : {}),
       ...(patch.chartData !== undefined ? { chartData: patch.chartData } : {}),
@@ -287,7 +417,16 @@ export async function updatePersonalTrade(
     .where(and(eq(trades.id, tradeId), eq(trades.userId, userId)))
     .returning();
 
-  return row ? rowToTradeRecord(row) : null;
+  if (!row) {
+    return null;
+  }
+
+  if (patch.levelPushes !== undefined) {
+    await syncTradeLevelPushes(userId, tradeId, patch.levelPushes);
+  }
+
+  const pushesByTrade = await listLevelPushesForTradeIds([tradeId]);
+  return rowToTradeRecord(row, pushesByTrade.get(tradeId) ?? []);
 }
 
 export async function deletePersonalTrade(userId: string, tradeId: string) {
