@@ -66,6 +66,7 @@ import { DailyOverviewPanel } from "@/components/journal/daily-overview-panel";
 import { ScreenshotGallery } from "@/components/journal/screenshot-gallery";
 import { formatOverviewDayLabel } from "@/components/journal/overview-date-picker";
 import { JournalEntryForm } from "@/components/journal/journal-entry-form";
+import { JournalPdfExportButton } from "@/components/journal/journal-pdf-export-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -77,6 +78,7 @@ import {
   JOURNAL_STRATEGY_COLORS,
   type JournalStrategy,
 } from "@/lib/journal-constants";
+import { MAX_PDF_EXPORT_TRADES } from "@/lib/journal-pdf-export";
 import { createClient, hasSupabaseBrowserConfig } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { buildDailyProfit, getTradeStats, type Trade, type TradeOutcome } from "@/lib/trades";
@@ -1310,6 +1312,37 @@ function JournalView({
   onSelectTrade: (trade: Trade) => void;
   onDailyOverviewSaved: () => void;
 }) {
+  const [pdfSelectedIds, setPdfSelectedIds] = useState<Set<string>>(new Set());
+  const [pdfExportMessage, setPdfExportMessage] = useState<string | null>(null);
+
+  const pdfSelectedTrades = useMemo(
+    () =>
+      filteredTrades.filter((trade) => pdfSelectedIds.has(trade.id)).slice(0, MAX_PDF_EXPORT_TRADES),
+    [filteredTrades, pdfSelectedIds],
+  );
+
+  const togglePdfSelection = (tradeId: string) => {
+    setPdfExportMessage(null);
+    setPdfSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(tradeId)) {
+        next.delete(tradeId);
+        return next;
+      }
+      if (next.size >= MAX_PDF_EXPORT_TRADES) {
+        setPdfExportMessage(`You can export up to ${MAX_PDF_EXPORT_TRADES} trade journals at once.`);
+        return current;
+      }
+      next.add(tradeId);
+      return next;
+    });
+  };
+
+  const clearPdfSelection = () => {
+    setPdfExportMessage(null);
+    setPdfSelectedIds(new Set());
+  };
+
   if (journalSection === "daily-overview") {
     return (
       <section className="space-y-8">
@@ -1397,6 +1430,22 @@ function JournalView({
                     Edit selected
                   </Button>
                 ) : null}
+                {pdfSelectedTrades.length > 0 ? (
+                  <JournalPdfExportButton
+                    trades={pdfSelectedTrades}
+                    disabled={demoTradesEnabled}
+                    onError={setPdfExportMessage}
+                  />
+                ) : null}
+                {pdfSelectedIds.size > 0 ? (
+                  <Button
+                    type="button"
+                    onClick={clearPdfSelection}
+                    className="bg-white/5 text-xs text-zinc-300"
+                  >
+                    Clear selection ({pdfSelectedIds.size})
+                  </Button>
+                ) : null}
               </div>
             </div>
             <div className="grid gap-2 sm:grid-cols-3">
@@ -1450,11 +1499,19 @@ function JournalView({
               </button>
             ))}
           </div>
+          {journalTab === "List overview" ? (
+            <p className="mt-3 text-xs text-zinc-500">
+              Select up to {MAX_PDF_EXPORT_TRADES} trades with the checkboxes to export a combined PDF for LLM
+              analysis.
+            </p>
+          ) : null}
+          {pdfExportMessage ? <p className="mt-2 text-xs text-amber-200">{pdfExportMessage}</p> : null}
         </CardHeader>
         <CardContent>
           {journalTab === "List overview" && (
             <div className="overflow-hidden rounded-3xl border border-white/10">
-              <div className="grid grid-cols-[1.2fr_0.8fr_0.9fr_0.8fr_0.9fr] bg-white/[0.06] px-4 py-3 text-xs font-bold uppercase tracking-[0.18em] text-zinc-500 max-lg:hidden">
+              <div className="grid grid-cols-[auto_1.2fr_0.8fr_0.9fr_0.8fr_0.9fr] bg-white/[0.06] px-4 py-3 text-xs font-bold uppercase tracking-[0.18em] text-zinc-500 max-lg:hidden">
+                <span className="sr-only">Export</span>
                 <span>Pair</span>
                 <span>Outcome</span>
                 <span>Date</span>
@@ -1462,16 +1519,34 @@ function JournalView({
                 <span>Strategy</span>
               </div>
               <div className="divide-y divide-white/10">
-                {filteredTrades.map((trade) => (
-                  <button
+                {filteredTrades.map((trade) => {
+                  const isPdfSelected = pdfSelectedIds.has(trade.id);
+                  const pdfSelectionDisabled =
+                    !isPdfSelected && pdfSelectedIds.size >= MAX_PDF_EXPORT_TRADES;
+
+                  return (
+                  <div
                     key={trade.id}
-                    type="button"
-                    onClick={() => onSelectTrade(trade)}
                     className={cn(
-                      "grid w-full gap-3 px-4 py-4 text-left transition hover:bg-cyan-300/10 lg:grid-cols-[1.2fr_0.8fr_0.9fr_0.8fr_0.9fr] lg:items-center",
+                      "grid w-full gap-3 px-4 py-4 transition hover:bg-cyan-300/10 lg:grid-cols-[auto_1.2fr_0.8fr_0.9fr_0.8fr_0.9fr] lg:items-center",
                       selectedTrade?.id === trade.id && "bg-cyan-300/10",
                     )}
                   >
+                    <label className="flex items-center justify-center">
+                      <input
+                        type="checkbox"
+                        checked={isPdfSelected}
+                        disabled={pdfSelectionDisabled}
+                        onChange={() => togglePdfSelection(trade.id)}
+                        className="h-4 w-4 rounded border-white/20 bg-zinc-950 text-cyan-300 focus:ring-cyan-300/40"
+                        aria-label={`Select ${trade.pair} for PDF export`}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => onSelectTrade(trade)}
+                      className="grid w-full gap-3 text-left lg:col-span-5 lg:grid-cols-[1.2fr_0.8fr_0.9fr_0.8fr_0.9fr] lg:items-center"
+                    >
                     <div>
                       <div className="font-black text-white">{trade.pair}</div>
                       <div className="text-xs font-semibold text-zinc-500">{trade.position}</div>
@@ -1489,8 +1564,10 @@ function JournalView({
                       {formatPercent(trade.profitPercent)}
                     </span>
                     <span className="text-sm font-semibold text-cyan-100">{trade.strategy}</span>
-                  </button>
-                ))}
+                    </button>
+                  </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -1620,12 +1697,17 @@ function TradeDetail({
               {format(parseISO(trade.date), "EEEE, MMM d")} · {trade.position}
             </p>
           </div>
-          <Badge tone={trade.outcome === "WIN" ? "win" : "loss"}>{trade.outcome}</Badge>
-          {canEdit ? (
-            <Button type="button" onClick={onEdit} className="bg-white/5 text-zinc-100">
-              Edit
-            </Button>
-          ) : null}
+          <div className="flex flex-col items-end gap-2">
+            <Badge tone={trade.outcome === "WIN" ? "win" : "loss"}>{trade.outcome}</Badge>
+            <div className="flex flex-wrap justify-end gap-2">
+              <JournalPdfExportButton trades={[trade]} label="Export PDF" />
+              {canEdit ? (
+                <Button type="button" onClick={onEdit} className="bg-white/5 text-zinc-100">
+                  Edit
+                </Button>
+              ) : null}
+            </div>
+          </div>
         </div>
       </CardHeader>
       <CardContent>

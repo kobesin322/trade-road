@@ -19,6 +19,7 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "drizzle-orm": "^0.41.0",
+    "jspdf": "^3.0.1",
     "lightweight-charts": "^5.2.0",
     "lucide-react": "^1.14.0",
     "next": "^15.5.15",
