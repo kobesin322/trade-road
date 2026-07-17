@@ -27,7 +27,7 @@ import {
   LineChart,
   ListFilter,
   LogOut,
-  Menu,
+  MoreHorizontal,
   Scale,
   Search,
   Sparkles,
@@ -35,7 +35,6 @@ import {
   Target,
   Trophy,
   WalletCards,
-  X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
@@ -67,6 +66,8 @@ import { ScreenshotGallery } from "@/components/journal/screenshot-gallery";
 import { formatOverviewDayLabel } from "@/components/journal/overview-date-picker";
 import { JournalEntryForm } from "@/components/journal/journal-entry-form";
 import { JournalPdfExportButton } from "@/components/journal/journal-pdf-export-button";
+import { MobileBottomNav } from "@/components/mobile/mobile-bottom-nav";
+import { MobileMoreSheet } from "@/components/mobile/mobile-more-sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -79,6 +80,8 @@ import {
   type JournalStrategy,
 } from "@/lib/journal-constants";
 import { MAX_PDF_EXPORT_TRADES } from "@/lib/journal-pdf-export";
+import { useIsMobile } from "@/lib/hooks/use-is-mobile";
+import type { MobilePrimaryView } from "@/lib/mobile";
 import { createClient, hasSupabaseBrowserConfig } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { buildDailyProfit, getTradeStats, type Trade, type TradeOutcome } from "@/lib/trades";
@@ -308,9 +311,10 @@ export function TradingDashboard({
     format(new Date(), "yyyy-MM-dd"),
   );
   const [portfolioSnapshotDates, setPortfolioSnapshotDates] = useState<string[]>([]);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     try {
@@ -472,8 +476,14 @@ export function TradingDashboard({
 
   function navigateToView(view: MainView) {
     setActiveView(view);
-    setMobileMenuOpen(false);
+    setMobileMoreOpen(false);
   }
+
+  useEffect(() => {
+    if (!isMobile) {
+      setMobileMoreOpen(false);
+    }
+  }, [isMobile]);
 
   function selectTrade(trade: Trade) {
     setSelectedTrade(trade);
@@ -623,71 +633,88 @@ export function TradingDashboard({
           </div>
         </aside>
 
-        {/* Mobile drawer */}
-        {mobileMenuOpen ? (
-          <div className="fixed inset-0 z-40 lg:hidden">
-            <button
-              type="button"
-              aria-label="Close menu"
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-              onClick={() => setMobileMenuOpen(false)}
-            />
-            <aside className="absolute inset-y-0 left-0 flex w-[min(88vw,20rem)] flex-col border-r border-white/10 bg-[#070b14]/95 backdrop-blur-xl">
-              <div className="flex items-center justify-between border-b border-white/10 px-5 py-5">
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.24em] text-cyan-200/80">
-                    Trade Road
-                  </p>
-                  <p className="mt-1 text-lg font-black">Menu</p>
-                </div>
-                <button
-                  type="button"
-                  aria-label="Close menu"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="rounded-full border border-white/10 p-2 text-zinc-400 hover:bg-white/10 hover:text-white"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-              <nav className="flex-1 space-y-1 overflow-y-auto p-4">
-                {mainViews.map((view) => {
-                  const Icon = mainViewConfig[view].icon;
-                  const isActive = activeView === view;
-                  return (
-                    <button
-                      key={view}
-                      type="button"
-                      onClick={() => navigateToView(view)}
-                      className={cn(
-                        "flex w-full items-center gap-3 rounded-2xl px-4 py-3.5 text-left text-sm font-semibold transition",
-                        isActive
-                          ? "bg-cyan-300 text-slate-950"
-                          : "text-zinc-400 hover:bg-white/[0.06] hover:text-white",
-                      )}
-                    >
-                      <Icon className="h-4 w-4" />
-                      {view}
-                    </button>
-                  );
-                })}
-              </nav>
-            </aside>
-          </div>
-        ) : null}
+        {/* Mobile more sheet (secondary views + tools + account) */}
+        <MobileMoreSheet
+          open={mobileMoreOpen}
+          onClose={() => setMobileMoreOpen(false)}
+          activeView={activeView}
+          moreViews={[
+            {
+              id: "Strategy Lab",
+              label: "Strategy Lab",
+              description: mainViewConfig["Strategy Lab"].description,
+              icon: mainViewConfig["Strategy Lab"].icon,
+            },
+            {
+              id: "Utilities",
+              label: "Utilities",
+              description: mainViewConfig.Utilities.description,
+              icon: mainViewConfig.Utilities.icon,
+            },
+            {
+              id: "Calendar",
+              label: "Calendar",
+              description: mainViewConfig.Calendar.description,
+              icon: mainViewConfig.Calendar.icon,
+            },
+          ]}
+          toolLinks={toolLinks}
+          userEmail={userEmail}
+          demoTradesEnabled={demoTradesEnabled}
+          tradeCount={personalTrades.length}
+          onNavigate={(view) => navigateToView(view as MainView)}
+          onDemoToggle={handleDemoToggle}
+          demoPending={isPending}
+        />
+
+        <MobileBottomNav
+          activeView={activeView}
+          viewIcons={{
+            Dashboard: mainViewConfig.Dashboard.icon,
+            Journal: mainViewConfig.Journal.icon,
+            Portfolio: mainViewConfig.Portfolio.icon,
+            Charts: mainViewConfig.Charts.icon,
+          }}
+          onNavigate={(view: MobilePrimaryView) => navigateToView(view)}
+          onOpenMore={() => setMobileMoreOpen(true)}
+          moreActive={mobileMoreOpen}
+        />
 
         {/* Main content */}
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="sticky top-0 z-30 border-b border-white/10 bg-[#05070d]/80 px-4 py-5 backdrop-blur-xl sm:px-6 lg:px-10 lg:py-7">
-            <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-              <div className="flex items-start gap-4">
-                <button
+          <header
+            className="sticky top-0 z-30 border-b border-white/10 bg-[#05070d]/80 px-4 py-3 backdrop-blur-xl sm:px-6 lg:px-10 lg:py-7"
+            style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}
+          >
+            {/* Mobile compact header */}
+            <div className="flex items-center justify-between gap-3 lg:hidden">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.24em] text-cyan-200/70">
+                  <ActiveViewIcon className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">Trade Road</span>
+                </div>
+                <h2 className="mt-1 truncate text-xl font-black tracking-tight text-white">
+                  {activeView}
+                </h2>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <Badge tone={demoTradesEnabled ? "gold" : "blue"}>
+                  {demoTradesEnabled ? "Demo" : `${personalTrades.length}`}
+                </Badge>
+                <Button
                   type="button"
-                  aria-label="Open menu"
-                  onClick={() => setMobileMenuOpen(true)}
-                  className="mt-0.5 rounded-2xl border border-white/10 p-2.5 text-zinc-400 transition hover:bg-white/10 hover:text-white lg:hidden"
+                  aria-label="Open more menu"
+                  onClick={() => setMobileMoreOpen(true)}
+                  className="min-h-11 min-w-11 bg-white/[0.05] px-0 text-zinc-100"
                 >
-                  <Menu className="h-5 w-5" />
-                </button>
+                  <MoreHorizontal className="h-5 w-5" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Desktop header */}
+            <div className="hidden flex-col gap-5 lg:flex lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex items-start gap-4">
                 <button
                   type="button"
                   aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
@@ -846,38 +873,11 @@ export function TradingDashboard({
             </div>
 
             {seedMessage ? (
-              <p className="mt-4 text-sm text-amber-200">{seedMessage}</p>
+              <p className="mt-3 text-sm text-amber-200 lg:mt-4">{seedMessage}</p>
             ) : null}
-
-            {/* Mobile horizontal nav */}
-            <nav
-              aria-label="Quick navigation"
-              className="mt-5 flex gap-2 overflow-x-auto pb-1 lg:hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-            >
-              {mainViews.map((view) => {
-                const Icon = mainViewConfig[view].icon;
-                const isActive = activeView === view;
-                return (
-                  <button
-                    key={view}
-                    type="button"
-                    onClick={() => navigateToView(view)}
-                    className={cn(
-                      "inline-flex shrink-0 items-center gap-2 rounded-full border px-4 py-2.5 text-xs font-bold transition",
-                      isActive
-                        ? "border-cyan-300/50 bg-cyan-300 text-slate-950"
-                        : "border-white/10 bg-white/[0.04] text-zinc-400 hover:text-white",
-                    )}
-                  >
-                    <Icon className="h-3.5 w-3.5" />
-                    {view}
-                  </button>
-                );
-              })}
-            </nav>
           </header>
 
-          <div className="flex-1 space-y-12 px-4 py-8 sm:px-6 sm:py-10 lg:px-10 lg:py-12">
+          <div className="mobile-content-pad flex-1 space-y-6 px-4 py-5 sm:px-6 sm:py-8 lg:space-y-12 lg:px-10 lg:py-12">
             {activeView === "Dashboard" && (
               <DashboardView
                 bestWin={bestWin}
@@ -1048,16 +1048,18 @@ function DashboardView({
   ];
 
   return (
-    <section className="space-y-12">
+    <section className="space-y-6 lg:space-y-12">
       {/* KPI strip */}
-      <div className="space-y-5">
+      <div className="space-y-3 lg:space-y-5">
         <div>
           <p className="text-[10px] font-black uppercase tracking-[0.24em] text-zinc-600">
             Overview
           </p>
-          <h3 className="mt-2 text-lg font-bold text-zinc-200">{calendarLabel} snapshot</h3>
+          <h3 className="mt-1.5 text-base font-bold text-zinc-200 lg:mt-2 lg:text-lg">
+            {calendarLabel} snapshot
+          </h3>
         </div>
-        <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 lg:gap-5 xl:grid-cols-4">
           {metricCards.map((metric) => (
             <Card
               key={metric.title}
@@ -1066,20 +1068,24 @@ function DashboardView({
                 metric.tone,
               )}
             >
-              <CardContent className="relative p-7">
-                <div className="absolute right-5 top-5 rounded-2xl border border-white/10 bg-black/25 p-3 text-cyan-100">
-                  <metric.icon className="h-5 w-5" />
+              <CardContent className="relative p-4 lg:p-7">
+                <div className="absolute right-3 top-3 rounded-xl border border-white/10 bg-black/25 p-2 text-cyan-100 lg:right-5 lg:top-5 lg:rounded-2xl lg:p-3">
+                  <metric.icon className="h-4 w-4 lg:h-5 lg:w-5" />
                 </div>
-                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500">
+                <div className="pr-10 text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500 lg:text-xs lg:tracking-[0.2em]">
                   {metric.title}
                 </div>
-                <div className="mt-6 flex items-end gap-2">
-                  <span className="text-3xl font-black tracking-tight sm:text-4xl">{metric.value}</span>
+                <div className="mt-3 flex items-end gap-1.5 lg:mt-6 lg:gap-2">
+                  <span className="text-2xl font-black tracking-tight lg:text-4xl">
+                    {metric.value}
+                  </span>
                   {metric.title === "Total Profit" && (
-                    <span className="pb-1.5 text-emerald-300">▲</span>
+                    <span className="pb-1 text-emerald-300 lg:pb-1.5">▲</span>
                   )}
                 </div>
-                <p className="mt-3 text-sm leading-relaxed text-zinc-500">{metric.helper}</p>
+                <p className="mt-2 text-xs leading-relaxed text-zinc-500 lg:mt-3 lg:text-sm">
+                  {metric.helper}
+                </p>
               </CardContent>
             </Card>
           ))}
@@ -1087,30 +1093,32 @@ function DashboardView({
       </div>
 
       {/* Primary chart — daily P&L */}
-      <div className="space-y-5">
+      <div className="space-y-3 lg:space-y-5">
         <div>
           <p className="text-[10px] font-black uppercase tracking-[0.24em] text-zinc-600">
             Daily performance
           </p>
-          <h3 className="mt-2 text-lg font-bold text-zinc-200">Profit per day</h3>
+          <h3 className="mt-1.5 text-base font-bold text-zinc-200 lg:mt-2 lg:text-lg">
+            Profit per day
+          </h3>
         </div>
         <Card className="overflow-hidden">
-          <CardHeader className="px-7 pt-7">
-            <div className="flex items-center justify-between gap-4">
-              <p className="text-sm leading-relaxed text-zinc-500">
-                Daily profit heatmap for {calendarLabel}.
+          <CardHeader className="px-4 pt-4 lg:px-7 lg:pt-7">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs leading-relaxed text-zinc-500 lg:text-sm">
+                Daily profit for {calendarLabel}.
               </p>
               <Badge tone="gold">{dailyProfit.length} days</Badge>
             </div>
           </CardHeader>
-          <CardContent className="px-7 pb-8">
-            <div className="h-[min(520px,60vh)] min-h-72">
+          <CardContent className="px-3 pb-5 lg:px-7 lg:pb-8">
+            <div className="h-[min(360px,50vh)] min-h-56 lg:h-[min(520px,60vh)] lg:min-h-72">
               {chartsReady ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={dailyProfit}
                     layout="vertical"
-                    margin={{ bottom: 8, left: 0, right: 20, top: 8 }}
+                    margin={{ bottom: 8, left: 0, right: 12, top: 8 }}
                   >
                     <CartesianGrid stroke="rgba(255,255,255,0.06)" horizontal={false} />
                     <XAxis
@@ -1123,8 +1131,8 @@ function DashboardView({
                     <YAxis
                       dataKey="label"
                       type="category"
-                      width={58}
-                      tick={{ fill: "#a1a1aa", fontSize: 12 }}
+                      width={44}
+                      tick={{ fill: "#a1a1aa", fontSize: 11 }}
                       tickLine={false}
                       axisLine={false}
                     />
@@ -1155,28 +1163,30 @@ function DashboardView({
       </div>
 
       {/* Secondary insights */}
-      <div className="space-y-5">
+      <div className="space-y-3 lg:space-y-5">
         <div>
           <p className="text-[10px] font-black uppercase tracking-[0.24em] text-zinc-600">
             Strategy breakdown
           </p>
-          <h3 className="mt-2 text-lg font-bold text-zinc-200">Where edge comes from</h3>
+          <h3 className="mt-1.5 text-base font-bold text-zinc-200 lg:mt-2 lg:text-lg">
+            Where edge comes from
+          </h3>
         </div>
-        <div className="grid gap-8 xl:grid-cols-[1fr_1.1fr]">
+        <div className="grid gap-5 xl:grid-cols-[1fr_1.1fr] xl:gap-8">
           <Card className="overflow-hidden">
-            <CardHeader className="px-7 pt-7">
+            <CardHeader className="px-4 pt-4 lg:px-7 lg:pt-7">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <CardTitle>Win by strategy</CardTitle>
-                  <p className="mt-2 text-sm leading-relaxed text-zinc-500">
+                  <p className="mt-1.5 text-xs leading-relaxed text-zinc-500 lg:mt-2 lg:text-sm">
                     Setups ranked by captured profit.
                   </p>
                 </div>
                 <Badge tone="blue">Chart</Badge>
               </div>
             </CardHeader>
-            <CardContent className="space-y-6 px-7 pb-8">
-              <div className="h-72">
+            <CardContent className="space-y-4 px-4 pb-5 lg:space-y-6 lg:px-7 lg:pb-8">
+              <div className="h-56 lg:h-72">
                 {chartsReady ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={strategyChartData} margin={{ left: -24, right: 12, top: 12 }}>
@@ -1195,17 +1205,17 @@ function DashboardView({
                   <ChartPlaceholder label="Loading strategy chart" />
                 )}
               </div>
-              <div className="grid gap-3">
+              <div className="grid gap-2 lg:gap-3">
                 {strategyChartData.map((strategy) => (
                   <div
                     key={strategy.name}
-                    className="flex items-center justify-between rounded-2xl bg-white/[0.04] px-5 py-4"
+                    className="flex items-center justify-between rounded-2xl bg-white/[0.04] px-4 py-3 lg:px-5 lg:py-4"
                   >
-                    <div className="flex items-center gap-3">
-                      <span className="h-3 w-3 rounded-full" style={{ background: strategy.fill }} />
-                      <span className="font-semibold">{strategy.name}</span>
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: strategy.fill }} />
+                      <span className="truncate font-semibold">{strategy.name}</span>
                     </div>
-                    <span className="font-black text-white">${strategy.profit}</span>
+                    <span className="shrink-0 font-black text-white">${strategy.profit}</span>
                   </div>
                 ))}
               </div>
@@ -1213,13 +1223,13 @@ function DashboardView({
           </Card>
 
           <Card className="overflow-hidden border-emerald-300/20 bg-gradient-to-br from-emerald-400/10 via-cyan-400/[0.06] to-transparent">
-            <CardContent className="flex h-full flex-col justify-between gap-8 p-8">
+            <CardContent className="flex h-full flex-col justify-between gap-6 p-5 lg:gap-8 lg:p-8">
               <div>
                 <Badge tone="win">Monthly summary</Badge>
-                <h2 className="mt-6 text-3xl font-black tracking-tight sm:text-4xl">
+                <h2 className="mt-4 text-3xl font-black tracking-tight lg:mt-6 lg:text-4xl">
                   ${moneyFormatter.format(stats.totalProfit)}
                 </h2>
-                <p className="mt-4 max-w-md text-sm leading-relaxed text-zinc-400">
+                <p className="mt-3 max-w-md text-sm leading-relaxed text-zinc-400 lg:mt-4">
                   {bestWin ? (
                     <>
                       Best trade: {bestWin.pair} on {format(parseISO(bestWin.date), "MMM d")} for{" "}
@@ -1234,7 +1244,7 @@ function DashboardView({
               </div>
               <Button
                 onClick={() => setActiveView("Journal")}
-                className="w-full bg-white text-slate-950 hover:bg-cyan-100 sm:w-auto"
+                className="min-h-11 w-full bg-white text-slate-950 hover:bg-cyan-100 sm:w-auto"
               >
                 <ListFilter className="h-4 w-4" />
                 Open journal
@@ -1345,8 +1355,8 @@ function JournalView({
 
   if (journalSection === "daily-overview") {
     return (
-      <section className="space-y-8">
-        <div className="flex flex-wrap gap-3">
+      <section className="space-y-5 lg:space-y-8">
+        <div className="grid grid-cols-2 gap-2 lg:flex lg:flex-wrap lg:gap-3">
           {(
             [
               { id: "trades" as const, label: "Trades" },
@@ -1358,7 +1368,7 @@ function JournalView({
               type="button"
               onClick={() => setJournalSection(section.id)}
               className={cn(
-                "rounded-full border border-white/10 px-4 py-2 text-sm font-bold text-zinc-400 transition hover:bg-white/10 hover:text-white",
+                "min-h-11 rounded-2xl border border-white/10 px-3 py-2.5 text-sm font-bold text-zinc-400 transition active:bg-white/10 hover:bg-white/10 hover:text-white lg:rounded-full lg:px-4",
                 journalSection === section.id && "border-cyan-300/50 bg-cyan-300/15 text-cyan-100",
               )}
             >
@@ -1380,8 +1390,8 @@ function JournalView({
   }
 
   return (
-    <section className="space-y-8">
-      <div className="flex flex-wrap gap-3">
+    <section className="space-y-5 lg:space-y-8">
+      <div className="grid grid-cols-2 gap-2 lg:flex lg:flex-wrap lg:gap-3">
         {(
           [
             { id: "trades" as const, label: "Trades" },
@@ -1393,7 +1403,7 @@ function JournalView({
             type="button"
             onClick={() => setJournalSection(section.id)}
             className={cn(
-              "rounded-full border border-white/10 px-4 py-2 text-sm font-bold text-zinc-400 transition hover:bg-white/10 hover:text-white",
+              "min-h-11 rounded-2xl border border-white/10 px-3 py-2.5 text-sm font-bold text-zinc-400 transition active:bg-white/10 hover:bg-white/10 hover:text-white lg:rounded-full lg:px-4",
               journalSection === section.id && "border-cyan-300/50 bg-cyan-300/15 text-cyan-100",
             )}
           >
@@ -1401,15 +1411,15 @@ function JournalView({
           </button>
         ))}
       </div>
-      <div className="grid gap-8 xl:grid-cols-[1.45fr_0.75fr] xl:gap-10">
+      <div className="grid gap-5 xl:grid-cols-[1.45fr_0.75fr] xl:gap-10">
       <Card className="overflow-hidden">
-        <CardHeader>
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <CardHeader className="space-y-4 px-4 pt-4 lg:px-6 lg:pt-6">
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-3">
               <div>
                 <CardTitle>Trade List / Journal</CardTitle>
                 <p className="mt-1 text-sm text-zinc-400">
-                  Search, filter, and click a row to inspect the setup.
+                  Search, filter, and tap a trade to inspect.
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -1417,7 +1427,7 @@ function JournalView({
                   type="button"
                   disabled={!canUsePersonalJournal || demoTradesEnabled}
                   onClick={() => setJournalEditorMode("create")}
-                  className="bg-cyan-300 text-slate-950 hover:bg-cyan-200 disabled:opacity-40"
+                  className="min-h-11 flex-1 bg-cyan-300 text-slate-950 hover:bg-cyan-200 disabled:opacity-40 sm:flex-none"
                 >
                   Create journal
                 </Button>
@@ -1425,7 +1435,7 @@ function JournalView({
                   <Button
                     type="button"
                     onClick={() => setJournalEditorMode("edit")}
-                    className="bg-white/5 text-zinc-100"
+                    className="min-h-11 bg-white/5 text-zinc-100"
                   >
                     Edit selected
                   </Button>
@@ -1441,57 +1451,59 @@ function JournalView({
                   <Button
                     type="button"
                     onClick={clearPdfSelection}
-                    className="bg-white/5 text-xs text-zinc-300"
+                    className="min-h-11 bg-white/5 text-xs text-zinc-300"
                   >
-                    Clear selection ({pdfSelectedIds.size})
+                    Clear ({pdfSelectedIds.size})
                   </Button>
                 ) : null}
               </div>
             </div>
-            <div className="grid gap-2 sm:grid-cols-3">
+            <div className="grid gap-2">
               <label className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
                 <Input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  className="pl-9"
+                  className="min-h-11 pl-9"
                   placeholder="Search pair..."
                 />
               </label>
-              <select
-                value={outcomeFilter}
-                onChange={(event) => setOutcomeFilter(event.target.value as OutcomeFilter)}
-                className="h-11 rounded-2xl border border-white/10 bg-zinc-950 px-3 text-sm font-semibold text-white outline-none focus:border-cyan-300/60"
-              >
-                <option value="ALL">All outcomes</option>
-                <option value="WIN">Wins</option>
-                <option value="LOSS">Losses</option>
-              </select>
-              <select
-                value={strategyFilter}
-                onChange={(event) =>
-                  setStrategyFilter(event.target.value as "ALL" | JournalStrategy)
-                }
-                className="h-11 rounded-2xl border border-white/10 bg-zinc-950 px-3 text-sm font-semibold text-white outline-none focus:border-cyan-300/60"
-              >
-                <option value="ALL">All strategies</option>
-                {strategies.map((strategy) => (
-                  <option key={strategy} value={strategy}>
-                    {strategy}
-                  </option>
-                ))}
-              </select>
+              <div className="grid grid-cols-2 gap-2">
+                <select
+                  value={outcomeFilter}
+                  onChange={(event) => setOutcomeFilter(event.target.value as OutcomeFilter)}
+                  className="min-h-11 rounded-2xl border border-white/10 bg-zinc-950 px-3 text-sm font-semibold text-white outline-none focus:border-cyan-300/60"
+                >
+                  <option value="ALL">All outcomes</option>
+                  <option value="WIN">Wins</option>
+                  <option value="LOSS">Losses</option>
+                </select>
+                <select
+                  value={strategyFilter}
+                  onChange={(event) =>
+                    setStrategyFilter(event.target.value as "ALL" | JournalStrategy)
+                  }
+                  className="min-h-11 rounded-2xl border border-white/10 bg-zinc-950 px-3 text-sm font-semibold text-white outline-none focus:border-cyan-300/60"
+                >
+                  <option value="ALL">All strategies</option>
+                  {strategies.map((strategy) => (
+                    <option key={strategy} value={strategy}>
+                      {strategy}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
 
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {journalTabs.map((tab) => (
               <button
                 key={tab}
                 type="button"
                 onClick={() => setJournalTab(tab)}
                 className={cn(
-                  "rounded-full border border-white/10 px-4 py-2 text-sm font-bold text-zinc-400 transition hover:bg-white/10 hover:text-white",
+                  "min-h-10 shrink-0 rounded-full border border-white/10 px-4 py-2 text-sm font-bold text-zinc-400 transition hover:bg-white/10 hover:text-white",
                   journalTab === tab && "border-cyan-300/50 bg-cyan-300/15 text-cyan-100",
                 )}
               >
@@ -1500,14 +1512,13 @@ function JournalView({
             ))}
           </div>
           {journalTab === "List overview" ? (
-            <p className="mt-3 text-xs text-zinc-500">
-              Select up to {MAX_PDF_EXPORT_TRADES} trades with the checkboxes to export a combined PDF for LLM
-              analysis.
+            <p className="text-xs text-zinc-500">
+              Select up to {MAX_PDF_EXPORT_TRADES} trades to export a combined PDF.
             </p>
           ) : null}
-          {pdfExportMessage ? <p className="mt-2 text-xs text-amber-200">{pdfExportMessage}</p> : null}
+          {pdfExportMessage ? <p className="text-xs text-amber-200">{pdfExportMessage}</p> : null}
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-3 pb-4 lg:px-6 lg:pb-6">
           {journalTab === "List overview" && (
             <div className="overflow-hidden rounded-3xl border border-white/10">
               <div className="grid grid-cols-[auto_1.2fr_0.8fr_0.9fr_0.8fr_0.9fr] bg-white/[0.06] px-4 py-3 text-xs font-bold uppercase tracking-[0.18em] text-zinc-500 max-lg:hidden">
@@ -1528,42 +1539,52 @@ function JournalView({
                   <div
                     key={trade.id}
                     className={cn(
-                      "grid w-full gap-3 px-4 py-4 transition hover:bg-cyan-300/10 lg:grid-cols-[auto_1.2fr_0.8fr_0.9fr_0.8fr_0.9fr] lg:items-center",
+                      "grid w-full gap-3 px-3 py-3.5 transition hover:bg-cyan-300/10 lg:grid-cols-[auto_1.2fr_0.8fr_0.9fr_0.8fr_0.9fr] lg:items-center lg:px-4 lg:py-4",
                       selectedTrade?.id === trade.id && "bg-cyan-300/10",
                     )}
                   >
-                    <label className="flex items-center justify-center">
+                    <label className="flex min-h-11 min-w-11 items-center justify-center lg:min-h-0 lg:min-w-0">
                       <input
                         type="checkbox"
                         checked={isPdfSelected}
                         disabled={pdfSelectionDisabled}
                         onChange={() => togglePdfSelection(trade.id)}
-                        className="h-4 w-4 rounded border-white/20 bg-zinc-950 text-cyan-300 focus:ring-cyan-300/40"
+                        className="h-5 w-5 rounded border-white/20 bg-zinc-950 text-cyan-300 focus:ring-cyan-300/40 lg:h-4 lg:w-4"
                         aria-label={`Select ${trade.pair} for PDF export`}
                       />
                     </label>
                     <button
                       type="button"
                       onClick={() => onSelectTrade(trade)}
-                      className="grid w-full gap-3 text-left lg:col-span-5 lg:grid-cols-[1.2fr_0.8fr_0.9fr_0.8fr_0.9fr] lg:items-center"
+                      className="grid w-full gap-2 text-left touch-manipulation lg:col-span-5 lg:grid-cols-[1.2fr_0.8fr_0.9fr_0.8fr_0.9fr] lg:items-center lg:gap-3"
                     >
-                    <div>
-                      <div className="font-black text-white">{trade.pair}</div>
-                      <div className="text-xs font-semibold text-zinc-500">{trade.position}</div>
+                    {/* Mobile card row */}
+                    <div className="flex items-start justify-between gap-3 lg:contents">
+                      <div className="min-w-0">
+                        <div className="font-black text-white">{trade.pair}</div>
+                        <div className="text-xs font-semibold text-zinc-500">{trade.position}</div>
+                        <div className="mt-1 text-xs text-zinc-400 lg:hidden">
+                          {format(parseISO(trade.date), "MMM d, yyyy")} · {trade.strategy}
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 flex-col items-end gap-1.5 lg:contents">
+                        <Badge tone={trade.outcome === "WIN" ? "win" : "loss"}>{trade.outcome}</Badge>
+                        <span className="hidden text-sm text-zinc-300 lg:inline">
+                          {format(parseISO(trade.date), "MMM d, yyyy")}
+                        </span>
+                        <span
+                          className={cn(
+                            "text-sm font-black",
+                            trade.profitPercent >= 0 ? "text-emerald-300" : "text-rose-300",
+                          )}
+                        >
+                          {formatPercent(trade.profitPercent)}
+                        </span>
+                        <span className="hidden text-sm font-semibold text-cyan-100 lg:inline">
+                          {trade.strategy}
+                        </span>
+                      </div>
                     </div>
-                    <Badge tone={trade.outcome === "WIN" ? "win" : "loss"}>{trade.outcome}</Badge>
-                    <span className="text-sm text-zinc-300">
-                      {format(parseISO(trade.date), "MMM d, yyyy")}
-                    </span>
-                    <span
-                      className={cn(
-                        "text-sm font-black",
-                        trade.profitPercent >= 0 ? "text-emerald-300" : "text-rose-300",
-                      )}
-                    >
-                      {formatPercent(trade.profitPercent)}
-                    </span>
-                    <span className="text-sm font-semibold text-cyan-100">{trade.strategy}</span>
                     </button>
                   </div>
                   );
@@ -1592,10 +1613,10 @@ function JournalView({
           {journalTab === "Strategy overview" && (
             <div className="grid gap-4">
               {strategySummary.map((summary) => (
-                <div key={summary.strategy} className="rounded-3xl border border-white/10 bg-white/[0.04] p-5">
+                <div key={summary.strategy} className="rounded-3xl border border-white/10 bg-white/[0.04] p-4 lg:p-5">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <div className="text-xl font-black">{summary.strategy}</div>
+                      <div className="text-lg font-black lg:text-xl">{summary.strategy}</div>
                       <div className="text-sm text-zinc-400">
                         {summary.trades} trades · {summary.wins} wins · {formatMoney(summary.total)}
                       </div>
@@ -1909,26 +1930,26 @@ function CalendarView({
   }
 
   return (
-    <section className="space-y-10">
+    <section className="space-y-6 lg:space-y-10">
       <Card className="overflow-hidden">
-        <CardHeader>
+        <CardHeader className="px-4 pt-4 lg:px-6 lg:pt-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <CardTitle>Calendar View</CardTitle>
               <p className="mt-1 text-sm text-zinc-400">
-                {calendarLabel} — trades, daily overviews, and portfolio snapshots.
+                {calendarLabel} — trades, overviews, snapshots.
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="grid grid-cols-4 gap-2 sm:flex sm:flex-wrap sm:items-center">
               <Button
                 type="button"
                 onClick={() => shiftMonth(-1)}
-                className="bg-white/5 text-zinc-100"
+                className="min-h-11 bg-white/5 text-zinc-100"
               >
                 Prev
               </Button>
-              <div className="relative">
-                <Badge tone="blue" className="gap-2 px-3 py-2">
+              <div className="relative col-span-2 sm:col-span-1">
+                <Badge tone="blue" className="flex min-h-11 w-full items-center justify-center gap-2 px-3 py-2 sm:w-auto">
                   <CalendarDays className="h-3.5 w-3.5" />
                   {calendarLabel}
                 </Badge>
@@ -1950,27 +1971,37 @@ function CalendarView({
               <Button
                 type="button"
                 onClick={() => shiftMonth(1)}
-                className="bg-white/5 text-zinc-100"
+                className="min-h-11 bg-white/5 text-zinc-100"
               >
                 Next
               </Button>
-              <Button type="button" onClick={goToToday} className="bg-cyan-300/10 text-cyan-100">
+              <Button
+                type="button"
+                onClick={goToToday}
+                className="col-span-4 min-h-11 bg-cyan-300/10 text-cyan-100 sm:col-span-1"
+              >
                 Today
               </Button>
             </div>
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-7 gap-2 text-center text-xs font-black uppercase tracking-[0.2em] text-zinc-500">
-            {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-              <div key={day} className="py-2">
-                {day}
+        <CardContent className="px-2 pb-4 sm:px-4 lg:px-6 lg:pb-6">
+          <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500 sm:gap-2 sm:text-xs sm:tracking-[0.2em]">
+            {["S", "M", "T", "W", "T", "F", "S"].map((day, index) => (
+              <div key={`${day}-${index}`} className="py-1.5 sm:py-2">
+                <span className="sm:hidden">{day}</span>
+                <span className="hidden sm:inline">
+                  {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][index]}
+                </span>
               </div>
             ))}
           </div>
-          <div className="mt-2 grid grid-cols-7 gap-2">
+          <div className="mt-1 grid grid-cols-7 gap-1 sm:mt-2 sm:gap-2">
             {Array.from({ length: calendarOffset }).map((_, index) => (
-              <div key={`blank-${index}`} className="min-h-28 rounded-3xl border border-white/5 bg-white/[0.02]" />
+              <div
+                key={`blank-${index}`}
+                className="min-h-12 rounded-2xl border border-white/5 bg-white/[0.02] sm:min-h-28 sm:rounded-3xl"
+              />
             ))}
             {calendarDays.map((day) => {
               const dateKey = format(day, "yyyy-MM-dd");
@@ -1986,7 +2017,7 @@ function CalendarView({
                   type="button"
                   onClick={() => setSelectedCalendarDate(dateKey)}
                   className={cn(
-                    "min-h-28 rounded-3xl border p-2 text-left transition sm:p-3",
+                    "min-h-12 rounded-2xl border p-1.5 text-left transition touch-manipulation sm:min-h-28 sm:rounded-3xl sm:p-3",
                     isSelected
                       ? "border-cyan-300/70 bg-cyan-300/15 shadow-[0_0_24px_rgba(34,211,238,0.18)]"
                       : "border-white/10 bg-white/[0.04] hover:border-cyan-300/40 hover:bg-cyan-300/10",
@@ -1995,20 +2026,20 @@ function CalendarView({
                     hasPortfolioSnapshot && !isSelected && "border-amber-400/25",
                   )}
                 >
-                  <div className="flex items-center justify-between gap-1">
+                  <div className="flex items-center justify-between gap-0.5">
                     <span
                       className={cn(
-                        "font-black",
+                        "text-sm font-black sm:text-base",
                         isSelected ? "text-cyan-100" : "text-white",
                         isToday(day) && "text-cyan-200",
                       )}
                     >
                       {format(day, "d")}
                     </span>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-0.5 sm:gap-1">
                       {hasOverview ? (
                         <span
-                          className="rounded-full bg-violet-400/20 px-1.5 py-0.5 text-[9px] font-black uppercase text-violet-200"
+                          className="hidden rounded-full bg-violet-400/20 px-1.5 py-0.5 text-[9px] font-black uppercase text-violet-200 sm:inline"
                           title="Daily overview saved"
                         >
                           OV
@@ -2016,20 +2047,20 @@ function CalendarView({
                       ) : null}
                       {hasPortfolioSnapshot ? (
                         <span
-                          className="rounded-full bg-amber-400/20 px-1.5 py-0.5 text-[9px] font-black uppercase text-amber-200"
+                          className="hidden rounded-full bg-amber-400/20 px-1.5 py-0.5 text-[9px] font-black uppercase text-amber-200 sm:inline"
                           title="Portfolio snapshot saved"
                         >
                           PS
                         </span>
                       ) : null}
-                      {dayTrades.length > 0 && (
-                        <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold text-zinc-300">
-                          {dayTrades.length}
+                      {(dayTrades.length > 0 || hasOverview || hasPortfolioSnapshot) && (
+                        <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[9px] font-bold text-zinc-300 sm:px-2 sm:text-[10px]">
+                          {dayTrades.length > 0 ? dayTrades.length : "·"}
                         </span>
                       )}
                     </div>
                   </div>
-                  <div className="mt-2 grid gap-1.5">
+                  <div className="mt-2 hidden gap-1.5 sm:grid">
                     {dayTrades.map((trade) => (
                       <span
                         key={trade.id}
@@ -2064,7 +2095,7 @@ function CalendarView({
               );
             })}
           </div>
-          <div className="mt-4 flex flex-wrap gap-4 border-t border-white/10 pt-4 text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-500">
+          <div className="mt-4 flex flex-wrap gap-3 border-t border-white/10 pt-4 text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-500 sm:gap-4">
             <span className="inline-flex items-center gap-1.5">
               <span className="rounded-full bg-violet-400/20 px-1.5 py-0.5 text-[9px] font-black text-violet-200">
                 OV
@@ -2087,7 +2118,7 @@ function CalendarView({
         </CardContent>
       </Card>
 
-      <div className="grid gap-6 lg:grid-cols-3 lg:gap-8">
+      <div className="grid gap-4 lg:grid-cols-3 lg:gap-8">
         <Card className="border-amber-300/25 bg-gradient-to-br from-amber-500/10 to-transparent">
           <CardContent className="grid gap-3 pt-6">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
