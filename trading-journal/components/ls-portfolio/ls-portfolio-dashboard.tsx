@@ -45,6 +45,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DecimalInput } from "@/components/ui/decimal-input";
 import { Input } from "@/components/ui/input";
 import { Modal, Toast } from "@/components/ui/modal";
 import {
@@ -58,6 +59,7 @@ import type { ComputedPosition, PortfolioDayCondition, PortfolioSnapshot, Positi
 import { BOOK_TYPE_LABELS } from "@/lib/ls-portfolio-types";
 import type { BetaReferenceSummary } from "@/lib/ls-portfolio-beta-reference";
 import { dayConditionHasContent, portfolioToDayCondition } from "@/lib/portfolio-day-condition";
+import { parseDecimalInput } from "@/lib/decimal-input";
 import { cn } from "@/lib/utils";
 
 type SideFilter = "all" | PositionSide;
@@ -1035,7 +1037,7 @@ export function LSPortfolioDashboard({
               </button>
             ))}
           </div>
-          <Field label="Amount (+ deposit / − withdraw)" value={cashAmount} onChange={setCashAmount} type="number" />
+          <Field label="Amount (+ deposit / − withdraw)" value={cashAmount} onChange={setCashAmount} />
           <Button
             type="button"
             disabled={actionLoading}
@@ -1104,9 +1106,7 @@ function InlineNum({
   }, [value]);
 
   return (
-    <input
-      type="number"
-      step="any"
+    <DecimalInput
       value={local}
       placeholder={placeholder}
       onChange={(e) => setLocal(e.target.value)}
@@ -1116,7 +1116,7 @@ function InlineNum({
         }
       }}
       className={cn(
-        "w-20 rounded-lg border border-white/10 bg-zinc-900 px-2 py-1 font-mono text-xs tabular-nums text-white",
+        "h-auto w-20 rounded-lg border-white/10 bg-zinc-900 px-2 py-1 text-xs",
         saving && "opacity-50",
       )}
     />
@@ -1155,8 +1155,8 @@ function TargetRatioEditor({
   }
 
   function commitLongText() {
-    const parsed = Number(longText.replace(/[^\d.]/g, ""));
-    if (!Number.isFinite(parsed)) {
+    const parsed = parseDecimalInput(longText);
+    if (parsed === null) {
       setLongText(String(longPct));
       return;
     }
@@ -1164,8 +1164,8 @@ function TargetRatioEditor({
   }
 
   function commitShortText() {
-    const parsed = Number(shortText.replace(/[^\d.]/g, ""));
-    if (!Number.isFinite(parsed)) {
+    const parsed = parseDecimalInput(shortText);
+    if (parsed === null) {
       setShortText(String(shortPct));
       return;
     }
@@ -1209,10 +1209,9 @@ function TargetRatioEditor({
             <Minus className="h-4 w-4" />
           </Button>
           <div className="relative flex-1">
-            <Input
+            <DecimalInput
               value={row.text}
               disabled={disabled}
-              inputMode="numeric"
               onChange={(e) => row.setText(e.target.value)}
               onBlur={row.onCommit}
               onKeyDown={(e) => {
@@ -1221,7 +1220,7 @@ function TargetRatioEditor({
                   (e.target as HTMLInputElement).blur();
                 }
               }}
-              className="pr-7 text-center font-mono font-bold tabular-nums"
+              className="pr-7 text-center font-bold"
             />
             <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">
               %
@@ -1269,17 +1268,15 @@ function Field({
   label,
   value,
   onChange,
-  type = "text",
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
-  type?: string;
 }) {
   return (
     <label className="grid gap-1 text-sm font-semibold text-zinc-300">
       {label}
-      <Input type={type} value={value} onChange={(e) => onChange(e.target.value)} className="bg-zinc-900 font-mono" />
+      <DecimalInput value={value} onChange={(e) => onChange(e.target.value)} className="bg-zinc-900" />
     </label>
   );
 }

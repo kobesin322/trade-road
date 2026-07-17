@@ -6,11 +6,15 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 
 import { deleteJournalEntry, saveJournalEntry } from "@/app/actions/journal";
 import { ScreenshotGallery } from "@/components/journal/screenshot-gallery";
-import { JournalLevelPushesEditor } from "@/components/journal/journal-level-pushes-editor";
+import {
+  JournalLevelPushesEditor,
+  type LevelPushFormRow,
+} from "@/components/journal/journal-level-pushes-editor";
 import { RichTextEditor } from "@/components/journal/rich-text-editor";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DecimalInput } from "@/components/ui/decimal-input";
 import { Input } from "@/components/ui/input";
 import {
   JOURNAL_PAIR_OPTIONS,
@@ -18,8 +22,14 @@ import {
   type JournalEntryInput,
   type JournalScreenshotUpload,
   type JournalStrategy,
+  type TradeLevelPushInput,
   type TradeScreenshot,
 } from "@/lib/journal-constants";
+import {
+  decimalInputString,
+  parseOptionalDecimalInput,
+  parseRequiredDecimalInput,
+} from "@/lib/decimal-input";
 import { useCustomWatchlist } from "@/lib/hooks/use-custom-watchlist";
 import type { Trade, TradeOutcome } from "@/lib/trades";
 import { cn } from "@/lib/utils";
@@ -31,6 +41,18 @@ type PendingScreenshot = {
   dataUrl: string;
 };
 
+type JournalFormState = Omit<
+  JournalEntryInput,
+  "profitPercent" | "profitAmount" | "stopLoss" | "takeProfit" | "riskRewardRatio" | "levelPushes"
+> & {
+  profitPercent: string;
+  profitAmount: string;
+  stopLoss: string;
+  takeProfit: string;
+  riskRewardRatio: string;
+  levelPushes: LevelPushFormRow[];
+};
+
 type JournalEntryFormProps = {
   mode: "create" | "edit";
   trade?: Trade | null;
@@ -39,48 +61,113 @@ type JournalEntryFormProps = {
   onDeleted?: () => void;
 };
 
-function emptyForm(): JournalEntryInput {
+function emptyForm(): JournalFormState {
   return {
     pair: "BTC-USD",
     date: format(new Date(), "yyyy-MM-dd"),
     strategy: "BouncyBall Breakout",
     outcome: "WIN",
-    profitPercent: 0,
-    profitAmount: 0,
+    profitPercent: "0",
+    profitAmount: "0",
     position: "LONG",
-    stopLoss: null,
-    takeProfit: null,
-    riskRewardRatio: null,
+    stopLoss: "",
+    takeProfit: "",
+    riskRewardRatio: "",
     levelPushes: [],
     journalHtml: "",
     screenshots: [],
   };
 }
 
-function tradeToForm(trade: Trade): JournalEntryInput {
+function tradeToForm(trade: Trade): JournalFormState {
   return {
     id: trade.id,
     pair: trade.pair,
     date: trade.date,
     strategy: trade.strategy,
     outcome: trade.outcome,
-    profitPercent: trade.profitPercent,
-    profitAmount: trade.profitAmount,
+    profitPercent: decimalInputString(trade.profitPercent),
+    profitAmount: decimalInputString(trade.profitAmount),
     position: trade.position,
-    stopLoss: trade.stopLoss ?? null,
-    takeProfit: trade.takeProfit ?? null,
-    riskRewardRatio: trade.riskRewardRatio ?? null,
+    stopLoss: decimalInputString(trade.stopLoss),
+    takeProfit: decimalInputString(trade.takeProfit),
+    riskRewardRatio: decimalInputString(trade.riskRewardRatio),
     levelPushes:
       trade.levelPushes?.map((push) => ({
         id: push.id,
         clientId: push.id,
         levelType: push.levelType,
-        price: push.price,
+        price: decimalInputString(push.price),
         pushedAt: push.pushedAt,
         note: push.note ?? "",
       })) ?? [],
     journalHtml: trade.journalHtml ?? "",
     screenshots: trade.screenshots ?? [],
+  };
+}
+
+function parseForm(
+  form: JournalFormState,
+): { ok: true; entry: JournalEntryInput } | { ok: false; message: string } {
+  const profitPercent = parseRequiredDecimalInput(form.profitPercent, "Profit %");
+  if (!profitPercent.ok) {
+    return profitPercent;
+  }
+
+  const profitAmount = parseRequiredDecimalInput(form.profitAmount, "Profit amount");
+  if (!profitAmount.ok) {
+    return profitAmount;
+  }
+
+  const stopLoss = parseOptionalDecimalInput(form.stopLoss);
+  if (form.stopLoss.trim() && stopLoss === null) {
+    return { ok: false, message: "Stop loss must be a valid number." };
+  }
+
+  const takeProfit = parseOptionalDecimalInput(form.takeProfit);
+  if (form.takeProfit.trim() && takeProfit === null) {
+    return { ok: false, message: "Take profit must be a valid number." };
+  }
+
+  const riskRewardRatio = parseOptionalDecimalInput(form.riskRewardRatio);
+  if (form.riskRewardRatio.trim() && riskRewardRatio === null) {
+    return { ok: false, message: "Risk reward must be a valid number." };
+  }
+
+  const levelPushes: TradeLevelPushInput[] = [];
+  for (const [index, push] of form.levelPushes.entries()) {
+    const price = parseOptionalDecimalInput(push.price);
+    if (price === null) {
+      return { ok: false, message: `Push record ${index + 1} needs a valid price.` };
+    }
+    levelPushes.push({
+      id: push.id,
+      clientId: push.clientId,
+      levelType: push.levelType,
+      price,
+      pushedAt: push.pushedAt,
+      note: push.note,
+    });
+  }
+
+  return {
+    ok: true,
+    entry: {
+      id: form.id,
+      pair: form.pair,
+      date: form.date,
+      strategy: form.strategy,
+      outcome: form.outcome,
+      profitPercent: profitPercent.value,
+      profitAmount: profitAmount.value,
+      position: form.position,
+      stopLoss,
+      takeProfit,
+      riskRewardRatio,
+      levelPushes,
+      journalHtml: form.journalHtml,
+      screenshots: form.screenshots,
+    },
   };
 }
 
@@ -101,7 +188,7 @@ export function JournalEntryForm({
   onDeleted,
 }: JournalEntryFormProps) {
   const { items: customWatchlist } = useCustomWatchlist();
-  const [form, setForm] = useState<JournalEntryInput>(() =>
+  const [form, setForm] = useState<JournalFormState>(() =>
     trade ? tradeToForm(trade) : emptyForm(),
   );
   const [pendingScreenshots, setPendingScreenshots] = useState<PendingScreenshot[]>([]);
@@ -140,7 +227,7 @@ export function JournalEntryForm({
     [customWatchlist],
   );
 
-  function updateField<K extends keyof JournalEntryInput>(key: K, value: JournalEntryInput[K]) {
+  function updateField<K extends keyof JournalFormState>(key: K, value: JournalFormState[K]) {
     setForm((current) => ({ ...current, [key]: value }));
   }
 
@@ -194,8 +281,14 @@ export function JournalEntryForm({
 
   function handleSave() {
     setMessage(null);
+    const parsed = parseForm(form);
+    if (!parsed.ok) {
+      setMessage(parsed.message);
+      return;
+    }
+
     startTransition(async () => {
-      const result = await saveJournalEntry(form, uploads);
+      const result = await saveJournalEntry(parsed.entry, uploads);
       setMessage(result.message);
       if (result.ok) {
         onSaved(result.trade);
@@ -303,11 +396,9 @@ export function JournalEntryForm({
           </label>
           <label className="grid gap-1 text-sm font-semibold text-zinc-300">
             Profit %
-            <Input
-              type="number"
-              step="0.1"
+            <DecimalInput
               value={form.profitPercent}
-              onChange={(event) => updateField("profitPercent", Number(event.target.value))}
+              onChange={(event) => updateField("profitPercent", event.target.value)}
               className="bg-zinc-950"
             />
           </label>
@@ -315,11 +406,9 @@ export function JournalEntryForm({
 
         <label className="grid gap-1 text-sm font-semibold text-zinc-300">
           Profit amount ($)
-          <Input
-            type="number"
-            step="1"
+          <DecimalInput
             value={form.profitAmount}
-            onChange={(event) => updateField("profitAmount", Number(event.target.value))}
+            onChange={(event) => updateField("profitAmount", event.target.value)}
             className="bg-zinc-950"
           />
         </label>
@@ -327,49 +416,28 @@ export function JournalEntryForm({
         <div className="grid gap-3 sm:grid-cols-3">
           <label className="grid gap-1 text-sm font-semibold text-zinc-300">
             SL (optional)
-            <Input
-              type="number"
-              step="any"
-              value={form.stopLoss ?? ""}
-              onChange={(event) =>
-                updateField(
-                  "stopLoss",
-                  event.target.value === "" ? null : Number(event.target.value),
-                )
-              }
-              className="bg-zinc-950 font-mono"
+            <DecimalInput
+              value={form.stopLoss}
+              onChange={(event) => updateField("stopLoss", event.target.value)}
+              className="bg-zinc-950"
               placeholder="Stop loss"
             />
           </label>
           <label className="grid gap-1 text-sm font-semibold text-zinc-300">
             TP (optional)
-            <Input
-              type="number"
-              step="any"
-              value={form.takeProfit ?? ""}
-              onChange={(event) =>
-                updateField(
-                  "takeProfit",
-                  event.target.value === "" ? null : Number(event.target.value),
-                )
-              }
-              className="bg-zinc-950 font-mono"
+            <DecimalInput
+              value={form.takeProfit}
+              onChange={(event) => updateField("takeProfit", event.target.value)}
+              className="bg-zinc-950"
               placeholder="Take profit"
             />
           </label>
           <label className="grid gap-1 text-sm font-semibold text-zinc-300">
             RR (optional)
-            <Input
-              type="number"
-              step="0.1"
-              value={form.riskRewardRatio ?? ""}
-              onChange={(event) =>
-                updateField(
-                  "riskRewardRatio",
-                  event.target.value === "" ? null : Number(event.target.value),
-                )
-              }
-              className="bg-zinc-950 font-mono"
+            <DecimalInput
+              value={form.riskRewardRatio}
+              onChange={(event) => updateField("riskRewardRatio", event.target.value)}
+              className="bg-zinc-950"
               placeholder="Risk reward"
             />
           </label>

@@ -15,7 +15,7 @@ import { saveJournalEntry } from "@/app/actions/journal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { DecimalInput } from "@/components/ui/decimal-input";
 import {
   JOURNAL_PAIR_OPTIONS,
   JOURNAL_STRATEGIES,
@@ -186,8 +186,8 @@ export function RiskCalculatorUtility({
               ))}
             </div>
 
-            <FieldRow label="Risk ($)" value={risk} onChange={setRisk} type="number" />
-            <FieldRow label="Capital ($)" value={capital} onChange={setCapital} type="number" />
+            <FieldRow label="Risk ($)" value={risk} onChange={setRisk} />
+            <FieldRow label="Capital ($)" value={capital} onChange={setCapital} />
             <div className="grid gap-2">
               <div className="flex items-center justify-between text-sm font-semibold text-zinc-300">
                 <span>Leverage</span>
@@ -202,18 +202,14 @@ export function RiskCalculatorUtility({
                 onChange={(e) => setLeverage(e.target.value)}
                 className="w-full accent-cyan-400"
               />
-              <Input
-                type="number"
-                min={1}
-                max={100}
+              <DecimalInput
                 value={leverage}
                 onChange={(e) => setLeverage(e.target.value)}
-                className="font-mono"
               />
             </div>
-            <FieldRow label="Entry price ($)" value={entry} onChange={setEntry} type="number" step="any" />
-            <FieldRow label="Take profit ($)" value={takeProfit} onChange={setTakeProfit} type="number" step="any" />
-            <FieldRow label="Stop loss ($)" value={stopLoss} onChange={setStopLoss} type="number" step="any" />
+            <FieldRow label="Entry price ($)" value={entry} onChange={setEntry} />
+            <FieldRow label="Take profit ($)" value={takeProfit} onChange={setTakeProfit} />
+            <FieldRow label="Stop loss ($)" value={stopLoss} onChange={setStopLoss} />
           </CardContent>
         </Card>
 
@@ -358,25 +354,15 @@ function FieldRow({
   label,
   value,
   onChange,
-  type = "text",
-  step,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
-  type?: string;
-  step?: string;
 }) {
   return (
     <label className="grid gap-1 text-sm font-semibold text-zinc-300">
       {label}
-      <Input
-        type={type}
-        step={step}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="bg-zinc-900 font-mono"
-      />
+      <DecimalInput value={value} onChange={(e) => onChange(e.target.value)} className="bg-zinc-900" />
     </label>
   );
 }

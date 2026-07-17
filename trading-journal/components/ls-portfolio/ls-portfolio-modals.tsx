@@ -12,6 +12,7 @@ import {
 } from "@/lib/ls-portfolio";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
+import { DecimalInput } from "@/components/ui/decimal-input";
 import { Input } from "@/components/ui/input";
 import { ALL_TICKER_OPTIONS } from "@/lib/ticker-symbols";
 import { cn } from "@/lib/utils";
@@ -34,15 +35,15 @@ export function TakeProfitModal({
   loading,
 }: TakeProfitModalProps) {
   const [sellPct, setSellPct] = useState(30);
-  const [sellQty, setSellQty] = useState<number | "">("");
+  const [sellQty, setSellQty] = useState("");
 
   const preview = useMemo<TakeProfitPreview | null>(() => {
     if (!position) {
       return null;
     }
     return calculateTakeProfitPreview(position, snapshot.portfolio, snapshot.positions, {
-      sell_pct: sellQty === "" ? sellPct : undefined,
-      sell_qty: sellQty === "" ? undefined : Number(sellQty),
+      sell_pct: sellQty.trim() === "" ? sellPct : undefined,
+      sell_qty: sellQty.trim() === "" ? undefined : Number(sellQty),
     });
   }, [position, sellPct, sellQty, snapshot]);
 
@@ -73,15 +74,11 @@ export function TakeProfitModal({
           </div>
           <label className="grid gap-1 text-sm font-semibold text-zinc-300">
             Or qty to close
-            <Input
-              type="number"
-              step="0.0001"
+            <DecimalInput
               value={sellQty}
-              onChange={(e) =>
-                setSellQty(e.target.value === "" ? "" : Number(e.target.value))
-              }
+              onChange={(e) => setSellQty(e.target.value)}
               placeholder={`Max ${formatQuantity(position.quantity)}`}
-              className="bg-zinc-900 font-mono"
+              className="bg-zinc-900"
             />
           </label>
           <div className="rounded-2xl border border-white/10 bg-black/30 p-3 text-sm text-zinc-400">
@@ -132,8 +129,8 @@ export function TakeProfitModal({
           onClick={() =>
             void onConfirm({
               position_id: position.id,
-              sell_pct: sellQty === "" ? sellPct : undefined,
-              sell_qty: sellQty === "" ? undefined : Number(sellQty),
+              sell_pct: sellQty.trim() === "" ? sellPct : undefined,
+              sell_qty: sellQty.trim() === "" ? undefined : Number(sellQty),
             })
           }
           className="bg-emerald-400 text-slate-950 hover:bg-emerald-300"
@@ -259,11 +256,11 @@ export function AddPositionModal({ open, onClose, onSubmit, loading }: AddPositi
           </datalist>
         </label>
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Quantity" value={quantity} onChange={setQuantity} type="number" />
-          <Field label="Avg entry $" value={entry} onChange={setEntry} type="number" />
-          <Field label="Current $" value={current} onChange={setCurrent} type="number" placeholder="= entry" />
-          <Field label="Stop $" value={stop} onChange={setStop} type="number" />
-          <Field label="Target $" value={target} onChange={setTarget} type="number" />
+          <Field label="Quantity" value={quantity} onChange={setQuantity} />
+          <Field label="Avg entry $" value={entry} onChange={setEntry} />
+          <Field label="Current $" value={current} onChange={setCurrent} placeholder="= entry" />
+          <Field label="Stop $" value={stop} onChange={setStop} />
+          <Field label="Target $" value={target} onChange={setTarget} />
         </div>
         <label className="grid gap-1 text-sm font-semibold text-zinc-300">
           Notes
@@ -290,24 +287,21 @@ function Field({
   label,
   value,
   onChange,
-  type = "text",
   placeholder,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
-  type?: string;
   placeholder?: string;
 }) {
   return (
     <label className="grid gap-1 text-sm font-semibold text-zinc-300">
       {label}
-      <Input
-        type={type}
+      <DecimalInput
         value={value}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
-        className="bg-zinc-900 font-mono"
+        className="bg-zinc-900"
       />
     </label>
   );

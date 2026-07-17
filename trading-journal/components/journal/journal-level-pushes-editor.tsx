@@ -5,19 +5,22 @@ import { Plus, Trash2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DecimalInput } from "@/components/ui/decimal-input";
 import { Input } from "@/components/ui/input";
 import type { TradeLevelPushInput } from "@/lib/journal-constants";
 
+export type LevelPushFormRow = Omit<TradeLevelPushInput, "price"> & { price: string };
+
 type JournalLevelPushesEditorProps = {
-  pushes: TradeLevelPushInput[];
-  onChange: (pushes: TradeLevelPushInput[]) => void;
+  pushes: LevelPushFormRow[];
+  onChange: (pushes: LevelPushFormRow[]) => void;
 };
 
-function defaultPush(levelType: TradeLevelPushInput["levelType"] = "SL"): TradeLevelPushInput {
+function defaultPush(levelType: LevelPushFormRow["levelType"] = "SL"): LevelPushFormRow {
   return {
     clientId: crypto.randomUUID(),
     levelType,
-    price: 0,
+    price: "",
     pushedAt: new Date().toISOString(),
     note: "",
   };
@@ -32,7 +35,7 @@ function toLocalDateTimeValue(iso: string) {
 }
 
 export function JournalLevelPushesEditor({ pushes, onChange }: JournalLevelPushesEditorProps) {
-  function updatePush(index: number, patch: Partial<TradeLevelPushInput>) {
+  function updatePush(index: number, patch: Partial<LevelPushFormRow>) {
     onChange(
       pushes.map((push, pushIndex) => (pushIndex === index ? { ...push, ...patch } : push)),
     );
@@ -42,7 +45,7 @@ export function JournalLevelPushesEditor({ pushes, onChange }: JournalLevelPushe
     onChange(pushes.filter((_, pushIndex) => pushIndex !== index));
   }
 
-  function addPush(levelType: TradeLevelPushInput["levelType"]) {
+  function addPush(levelType: LevelPushFormRow["levelType"]) {
     onChange([...pushes, defaultPush(levelType)]);
   }
 
@@ -81,7 +84,7 @@ export function JournalLevelPushesEditor({ pushes, onChange }: JournalLevelPushe
                     value={push.levelType}
                     onChange={(event) =>
                       updatePush(index, {
-                        levelType: event.target.value as TradeLevelPushInput["levelType"],
+                        levelType: event.target.value as LevelPushFormRow["levelType"],
                       })
                     }
                     className="h-10 rounded-xl border border-white/10 bg-zinc-950 px-3 text-sm font-semibold text-white outline-none focus:border-cyan-300/60"
@@ -92,14 +95,10 @@ export function JournalLevelPushesEditor({ pushes, onChange }: JournalLevelPushe
                 </label>
                 <label className="grid gap-1 text-xs font-semibold text-zinc-400">
                   Price
-                  <Input
-                    type="number"
-                    step="any"
-                    value={Number.isFinite(push.price) ? push.price : ""}
-                    onChange={(event) =>
-                      updatePush(index, { price: Number(event.target.value) })
-                    }
-                    className="bg-zinc-950 font-mono"
+                  <DecimalInput
+                    value={push.price}
+                    onChange={(event) => updatePush(index, { price: event.target.value })}
+                    className="bg-zinc-950"
                   />
                 </label>
                 <label className="grid gap-1 text-xs font-semibold text-zinc-400">
