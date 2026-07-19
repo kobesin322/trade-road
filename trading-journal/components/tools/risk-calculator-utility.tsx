@@ -18,9 +18,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import {
   JOURNAL_PAIR_OPTIONS,
-  JOURNAL_STRATEGIES,
-  type JournalStrategy,
+  SYSTEM_JOURNAL_STRATEGIES,
+  TRADE_SPECIES,
+  type TradeSpecies,
 } from "@/lib/journal-constants";
+import { useJournalStrategies } from "@/lib/hooks/use-journal-strategies";
 import { useCustomWatchlist } from "@/lib/hooks/use-custom-watchlist";
 import {
   buildCalculatorJournalHtml,
@@ -66,6 +68,7 @@ export function RiskCalculatorUtility({
   onTradeCreated,
 }: RiskCalculatorUtilityProps) {
   const { items: customWatchlist } = useCustomWatchlist();
+  const { customStrategies } = useJournalStrategies(canUsePersonalJournal);
   const [side, setSide] = useState<RiskCalculatorSide>("LONG");
   const [risk, setRisk] = useState("100");
   const [capital, setCapital] = useState("10000");
@@ -74,7 +77,8 @@ export function RiskCalculatorUtility({
   const [takeProfit, setTakeProfit] = useState("");
   const [stopLoss, setStopLoss] = useState("");
   const [linkOpen, setLinkOpen] = useState(false);
-  const [strategy, setStrategy] = useState<JournalStrategy>(JOURNAL_STRATEGIES[0]);
+  const [strategy, setStrategy] = useState<string>(SYSTEM_JOURNAL_STRATEGIES[0]);
+  const [species, setSpecies] = useState<TradeSpecies>("Stocks");
   const [pair, setPair] = useState("TSLA");
   const [message, setMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -121,6 +125,7 @@ export function RiskCalculatorUtility({
           pair,
           date: format(new Date(), "yyyy-MM-dd"),
           strategy,
+          species,
           outcome: "WIN",
           profitPercent: result.tpPercent ?? 0,
           profitAmount: result.expectedProfitDollars ?? 0,
@@ -288,10 +293,35 @@ export function RiskCalculatorUtility({
                   Strategy
                   <select
                     value={strategy}
-                    onChange={(e) => setStrategy(e.target.value as JournalStrategy)}
+                    onChange={(e) => setStrategy(e.target.value)}
                     className="rounded-2xl border border-white/10 bg-zinc-900 px-3 py-2.5 text-sm text-white"
                   >
-                    {JOURNAL_STRATEGIES.map((item) => (
+                    <optgroup label="System defaults">
+                      {SYSTEM_JOURNAL_STRATEGIES.map((item) => (
+                        <option key={item} value={item}>
+                          {item}
+                        </option>
+                      ))}
+                    </optgroup>
+                    {customStrategies.length > 0 ? (
+                      <optgroup label="Your strategies">
+                        {customStrategies.map((item) => (
+                          <option key={item.id} value={item.name}>
+                            {item.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ) : null}
+                  </select>
+                </label>
+                <label className="grid gap-1 text-sm font-semibold text-zinc-300">
+                  Species
+                  <select
+                    value={species}
+                    onChange={(e) => setSpecies(e.target.value as TradeSpecies)}
+                    className="rounded-2xl border border-white/10 bg-zinc-900 px-3 py-2.5 text-sm text-white"
+                  >
+                    {TRADE_SPECIES.map((item) => (
                       <option key={item} value={item}>
                         {item}
                       </option>

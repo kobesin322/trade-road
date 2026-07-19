@@ -7,8 +7,8 @@ import {
   type JournalEntryInput,
   type JournalScreenshotUpload,
   isJournalPair,
-  isJournalStrategy,
   isTradeSelfRating,
+  isTradeSpecies,
 } from "@/lib/journal-constants";
 import { uploadJournalScreenshots } from "@/lib/journal-screenshots";
 import { tradeRecordToTrade } from "@/lib/trade-db";
@@ -32,6 +32,7 @@ function toTradeInput(entry: JournalEntryInput): TradeInput {
     profitPercent: entry.profitPercent,
     profitAmount: entry.profitAmount,
     strategy: entry.strategy,
+    species: entry.species,
     position: entry.position,
     notes: null,
     stopLoss: entry.stopLoss ?? null,
@@ -59,8 +60,11 @@ function validateJournalEntry(
   if (!entry.date.trim()) {
     return "Date is required.";
   }
-  if (!isJournalStrategy(entry.strategy)) {
+  if (!entry.strategy.trim()) {
     return "Strategy is required.";
+  }
+  if (!isTradeSpecies(entry.species)) {
+    return "Species must be Stocks, Perps, or Futures.";
   }
   if (entry.outcome !== "WIN" && entry.outcome !== "LOSS") {
     return "Outcome must be WIN or LOSS.";

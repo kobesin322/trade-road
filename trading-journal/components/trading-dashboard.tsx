@@ -30,6 +30,7 @@ import {
   MoreHorizontal,
   Scale,
   Search,
+  Settings2,
   Sparkles,
   Swords,
   Target,
@@ -66,6 +67,7 @@ import { ScreenshotGallery } from "@/components/journal/screenshot-gallery";
 import { formatOverviewDayLabel } from "@/components/journal/overview-date-picker";
 import { JournalEntryForm } from "@/components/journal/journal-entry-form";
 import { JournalPdfExportButton } from "@/components/journal/journal-pdf-export-button";
+import { StrategySettingsPanel } from "@/components/journal/strategy-settings-panel";
 import { MobileBottomNav } from "@/components/mobile/mobile-bottom-nav";
 import { MobileMoreSheet } from "@/components/mobile/mobile-more-sheet";
 import { Badge } from "@/components/ui/badge";
@@ -75,10 +77,11 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { getDemoTrades } from "@/lib/demo-trades";
 import {
-  JOURNAL_STRATEGIES,
-  JOURNAL_STRATEGY_COLORS,
-  type JournalStrategy,
+  getJournalStrategyColor,
+  SYSTEM_JOURNAL_STRATEGIES,
+  buildCustomStrategyColorMap,
 } from "@/lib/journal-constants";
+import { useJournalStrategies } from "@/lib/hooks/use-journal-strategies";
 import { MAX_PDF_EXPORT_TRADES } from "@/lib/journal-pdf-export";
 import { useIsMobile } from "@/lib/hooks/use-is-mobile";
 import type { MobilePrimaryView } from "@/lib/mobile";
@@ -89,7 +92,16 @@ import type { DailyOverview } from "@/lib/daily-overview-types";
 import { buildOverviewsByDate, overviewHasContent } from "@/lib/daily-overview-utils";
 import { countMistakes } from "@/lib/trading-mistakes";
 
-const mainViews = ["Dashboard", "Journal", "Portfolio", "Charts", "Strategy Lab", "Utilities", "Calendar"] as const;
+const mainViews = [
+  "Dashboard",
+  "Journal",
+  "Portfolio",
+  "Charts",
+  "Strategy Settings",
+  "Strategy Lab",
+  "Utilities",
+  "Calendar",
+] as const;
 
 const toolLinks: Array<{
   href: string;
@@ -123,17 +135,18 @@ const toolLinks: Array<{
   },
 ];
 const journalTabs = ["List overview", "Wins Vs Losses", "Strategy overview"] as const;
-const strategies = JOURNAL_STRATEGIES;
 
-const strategyChartColors = JOURNAL_STRATEGY_COLORS;
-
-function buildStrategyChartData(tradeList: Trade[]) {
-  return strategies.map((strategy) => ({
+function buildStrategyChartData(
+  tradeList: Trade[],
+  strategyNames: string[],
+  customColors: Record<string, string>,
+) {
+  return strategyNames.map((strategy) => ({
     name: strategy,
     profit: tradeList
       .filter((trade) => trade.strategy === strategy)
       .reduce((sum, trade) => sum + trade.profitAmount, 0),
-    fill: strategyChartColors[strategy],
+    fill: getJournalStrategyColor(strategy, customColors),
   }));
 }
 
@@ -149,6 +162,7 @@ const mainViewConfig: Record<
   Journal: { icon: BookOpen, description: "Log and review every setup" },
   Portfolio: { icon: WalletCards, description: "Long / short book tracking" },
   Charts: { icon: LineChart, description: "Multi-timeframe market view" },
+  "Strategy Settings": { icon: Settings2, description: "System and custom journal strategies" },
   "Strategy Lab": { icon: FlaskConical, description: "CVD bounce backtester" },
   Utilities: { icon: Calculator, description: "Risk sizing and R:R tools" },
   Calendar: { icon: CalendarDays, description: "Trades, overviews, snapshots" },
@@ -300,7 +314,21 @@ export function TradingDashboard({
   const [journalSection, setJournalSection] = useState<JournalSection>("trades");
   const [query, setQuery] = useState("");
   const [outcomeFilter, setOutcomeFilter] = useState<OutcomeFilter>("ALL");
-  const [strategyFilter, setStrategyFilter] = useState<"ALL" | JournalStrategy>("ALL");
+  const [strategyFilter, setStrategyFilter] = useState<"ALL" | string>("ALL");
+  const { availableStrategies, customStrategies } = useJournalStrategies(
+    canUsePersonalJournal && !demoTradesEnabled,
+  );
+  const strategyColorMap = useMemo(
+    () => buildCustomStrategyColorMap(customStrategies),
+    [customStrategies],
+  );
+  const journalStrategyOptions = useMemo(() => {
+    const names = new Set<string>([...SYSTEM_JOURNAL_STRATEGIES, ...availableStrategies]);
+    for (const trade of trades) {
+      names.add(trade.strategy);
+    }
+    return Array.from(names).sort((left, right) => left.localeCompare(right));
+  }, [availableStrategies, trades]);
   const [selectedTrade, setSelectedTrade] = useState<Trade | null>(displayTrades[0] ?? null);
   const [confetti, setConfetti] = useState(false);
   const [chartsReady, setChartsReady] = useState(false);
@@ -427,7 +455,10 @@ export function TradingDashboard({
       return matchesQuery && matchesOutcome && matchesStrategy;
     });
   }, [outcomeFilter, query, strategyFilter, trades]);
-  const strategyChartData = useMemo(() => buildStrategyChartData(trades), [trades]);
+  const strategyChartData = useMemo(
+    () => buildStrategyChartData(trades, journalStrategyOptions, strategyColorMap),
+    [journalStrategyOptions, strategyColorMap, trades],
+  );
   const bestWin = stats.biggestWin ?? trades[0];
   const calendarLabel = format(calendarMonth, "MMMM yyyy");
   const calendarDays = useMemo(
@@ -449,7 +480,7 @@ export function TradingDashboard({
     1,
     ...dailyProfit.map((day) => Math.abs(day.profit)),
   );
-  const strategySummary = strategies.map((strategy) => {
+  const strategySummary = journalStrategyOptions.map((strategy) => {
     const strategyTrades = trades.filter((trade) => trade.strategy === strategy);
     const strategyWinsCount = strategyTrades.filter((trade) => trade.outcome === "WIN").length;
     const total = strategyTrades.reduce((sum, trade) => sum + trade.profitAmount, 0);
@@ -463,7 +494,7 @@ export function TradingDashboard({
         : 0,
       total,
     };
-  });
+  }).filter((summary) => summary.trades > 0);
 
   function handleDemoToggle(enabled: boolean) {
     setSeedMessage(null);
@@ -639,6 +670,12 @@ export function TradingDashboard({
           onClose={() => setMobileMoreOpen(false)}
           activeView={activeView}
           moreViews={[
+            {
+              id: "Strategy Settings",
+              label: "Strategy Settings",
+              description: mainViewConfig["Strategy Settings"].description,
+              icon: mainViewConfig["Strategy Settings"].icon,
+            },
             {
               id: "Strategy Lab",
               label: "Strategy Lab",
@@ -892,6 +929,13 @@ export function TradingDashboard({
               />
             )}
 
+            {activeView === "Strategy Settings" && (
+              <StrategySettingsPanel
+                canUsePersonalJournal={canUsePersonalJournal}
+                demoTradesEnabled={demoTradesEnabled}
+              />
+            )}
+
             {activeView === "Journal" && (
               <JournalView
                 canUsePersonalJournal={canUsePersonalJournal}
@@ -900,6 +944,7 @@ export function TradingDashboard({
                 filteredTrades={filteredTrades}
                 journalEditorMode={journalEditorMode}
                 journalSection={journalSection}
+                journalStrategyOptions={journalStrategyOptions}
                 journalTab={journalTab}
                 outcomeFilter={outcomeFilter}
                 personalDailyOverviews={personalDailyOverviews}
@@ -1264,6 +1309,7 @@ function JournalView({
   filteredTrades,
   journalEditorMode,
   journalSection,
+  journalStrategyOptions,
   journalTab,
   outcomeFilter,
   personalDailyOverviews,
@@ -1293,6 +1339,7 @@ function JournalView({
   filteredTrades: Trade[];
   journalEditorMode: "closed" | "create" | "edit";
   journalSection: JournalSection;
+  journalStrategyOptions: string[];
   journalTab: JournalTab;
   outcomeFilter: OutcomeFilter;
   personalDailyOverviews: DailyOverview[];
@@ -1306,11 +1353,11 @@ function JournalView({
   setSelectedCalendarDate: (date: string) => void;
   setOutcomeFilter: (filter: OutcomeFilter) => void;
   setQuery: (query: string) => void;
-  setStrategyFilter: (filter: "ALL" | JournalStrategy) => void;
+  setStrategyFilter: (filter: "ALL" | string) => void;
   stats: ReturnType<typeof getTradeStats>;
-  strategyFilter: "ALL" | JournalStrategy;
+  strategyFilter: "ALL" | string;
   strategySummary: {
-    strategy: JournalStrategy;
+    strategy: string;
     trades: number;
     wins: number;
     winRate: number;
@@ -1480,13 +1527,11 @@ function JournalView({
                 </select>
                 <select
                   value={strategyFilter}
-                  onChange={(event) =>
-                    setStrategyFilter(event.target.value as "ALL" | JournalStrategy)
-                  }
+                  onChange={(event) => setStrategyFilter(event.target.value)}
                   className="min-h-11 rounded-2xl border border-white/10 bg-zinc-950 px-3 text-sm font-semibold text-white outline-none focus:border-cyan-300/60"
                 >
                   <option value="ALL">All strategies</option>
-                  {strategies.map((strategy) => (
+                  {journalStrategyOptions.map((strategy) => (
                     <option key={strategy} value={strategy}>
                       {strategy}
                     </option>
@@ -1643,6 +1688,8 @@ function JournalView({
         <JournalEntryForm
           mode={journalEditorMode}
           trade={journalEditorMode === "edit" ? selectedTrade : null}
+          canUsePersonalJournal={canUsePersonalJournal}
+          demoTradesEnabled={demoTradesEnabled}
           onCancel={() => setJournalEditorMode("closed")}
           onDeleted={onJournalDeleted}
           onSaved={onJournalSaved}
@@ -1717,7 +1764,8 @@ function TradeDetail({
           <div>
             <CardTitle>{trade.pair}</CardTitle>
             <p className="mt-1 text-sm text-zinc-400">
-              {format(parseISO(trade.date), "EEEE, MMM d")} · {trade.position}
+              {format(parseISO(trade.date), "EEEE, MMM d")} · {trade.position} ·{" "}
+              {trade.species ?? "Stocks"}
             </p>
           </div>
           <div className="flex flex-col items-end gap-2">

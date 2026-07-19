@@ -205,6 +205,7 @@ function buildTradeSections(trade: Trade, index: number, total: number) {
         `Pair: ${trade.pair}`,
         `Date: ${format(parseISO(trade.date), "EEEE, MMM d, yyyy")}`,
         `Position: ${trade.position}`,
+        `Species: ${trade.species ?? "Stocks"}`,
         `Outcome: ${trade.outcome}`,
         `Strategy: ${trade.strategy}`,
       ],

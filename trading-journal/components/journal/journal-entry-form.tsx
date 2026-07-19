@@ -18,16 +18,19 @@ import { DecimalInput } from "@/components/ui/decimal-input";
 import { Input } from "@/components/ui/input";
 import {
   JOURNAL_PAIR_OPTIONS,
-  JOURNAL_STRATEGIES,
+  SYSTEM_JOURNAL_STRATEGIES,
   TRADE_SELF_RATING_FIELDS,
   TRADE_SELF_RATINGS,
+  TRADE_SPECIES,
+  isSystemJournalStrategy,
   type JournalEntryInput,
   type JournalScreenshotUpload,
-  type JournalStrategy,
   type TradeLevelPushInput,
   type TradeScreenshot,
   type TradeSelfRating,
+  type TradeSpecies,
 } from "@/lib/journal-constants";
+import { useJournalStrategies } from "@/lib/hooks/use-journal-strategies";
 import {
   decimalInputString,
   parseOptionalDecimalInput,
@@ -66,6 +69,8 @@ type JournalFormState = Omit<
 type JournalEntryFormProps = {
   mode: "create" | "edit";
   trade?: Trade | null;
+  canUsePersonalJournal?: boolean;
+  demoTradesEnabled?: boolean;
   onCancel: () => void;
   onSaved: (trade: Trade) => void;
   onDeleted?: () => void;
@@ -76,6 +81,7 @@ function emptyForm(): JournalFormState {
     pair: "BTC-USD",
     date: format(new Date(), "yyyy-MM-dd"),
     strategy: "BouncyBall Breakout",
+    species: "Stocks",
     outcome: "WIN",
     profitPercent: "0",
     profitAmount: "0",
@@ -100,6 +106,7 @@ function tradeToForm(trade: Trade): JournalFormState {
     pair: trade.pair,
     date: trade.date,
     strategy: trade.strategy,
+    species: trade.species ?? "Stocks",
     outcome: trade.outcome,
     profitPercent: decimalInputString(trade.profitPercent),
     profitAmount: decimalInputString(trade.profitAmount),
@@ -182,6 +189,7 @@ function parseForm(
       pair: form.pair,
       date: form.date,
       strategy: form.strategy,
+      species: form.species,
       outcome: form.outcome,
       profitPercent: profitPercent.value,
       profitAmount: profitAmount.value,
@@ -213,10 +221,13 @@ async function readFileAsDataUrl(file: File) {
 export function JournalEntryForm({
   mode,
   trade,
+  canUsePersonalJournal = true,
+  demoTradesEnabled = false,
   onCancel,
   onSaved,
   onDeleted,
 }: JournalEntryFormProps) {
+  const { customStrategies } = useJournalStrategies(canUsePersonalJournal && !demoTradesEnabled);
   const { items: customWatchlist } = useCustomWatchlist();
   const [form, setForm] = useState<JournalFormState>(() =>
     trade ? tradeToForm(trade) : emptyForm(),
@@ -386,20 +397,50 @@ export function JournalEntryForm({
             />
           </label>
           <label className="grid gap-1 text-sm font-semibold text-zinc-300">
-            Strategy
+            Species
             <select
-              value={form.strategy}
-              onChange={(event) => updateField("strategy", event.target.value as JournalStrategy)}
+              value={form.species}
+              onChange={(event) => updateField("species", event.target.value as TradeSpecies)}
               className="h-11 rounded-2xl border border-white/10 bg-zinc-950 px-3 text-sm font-semibold text-white outline-none focus:border-cyan-300/60"
             >
-              {JOURNAL_STRATEGIES.map((strategy) => (
-                <option key={strategy} value={strategy}>
-                  {strategy}
+              {TRADE_SPECIES.map((species) => (
+                <option key={species} value={species}>
+                  {species}
                 </option>
               ))}
             </select>
           </label>
         </div>
+
+        <label className="grid gap-1 text-sm font-semibold text-zinc-300">
+          Strategy
+          <select
+            value={form.strategy}
+            onChange={(event) => updateField("strategy", event.target.value)}
+            className="h-11 rounded-2xl border border-white/10 bg-zinc-950 px-3 text-sm font-semibold text-white outline-none focus:border-cyan-300/60"
+          >
+            <optgroup label="System defaults">
+              {SYSTEM_JOURNAL_STRATEGIES.map((strategy) => (
+                <option key={strategy} value={strategy}>
+                  {strategy}
+                </option>
+              ))}
+            </optgroup>
+            {customStrategies.length > 0 ? (
+              <optgroup label="Your strategies">
+                {customStrategies.map((strategy) => (
+                  <option key={strategy.id} value={strategy.name}>
+                    {strategy.name}
+                  </option>
+                ))}
+              </optgroup>
+            ) : null}
+            {!isSystemJournalStrategy(form.strategy) &&
+            !customStrategies.some((strategy) => strategy.name === form.strategy) ? (
+              <option value={form.strategy}>{form.strategy}</option>
+            ) : null}
+          </select>
+        </label>
 
         <div className="grid gap-3 sm:grid-cols-3">
           <label className="grid gap-1 text-sm font-semibold text-zinc-300">
@@ -413,7 +454,7 @@ export function JournalEntryForm({
               <option value="LOSS">LOSS</option>
             </select>
           </label>
-          <label className="grid gap-1 text-sm font-semibold text-zinc-300">
+          <label className="grid gap-1 text-sm font-semibold text-zinc-300 sm:col-span-2">
             Position
             <select
               value={form.position}
@@ -424,6 +465,9 @@ export function JournalEntryForm({
               <option value="SHORT">SHORT</option>
             </select>
           </label>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
           <label className="grid gap-1 text-sm font-semibold text-zinc-300">
             Profit %
             <DecimalInput
@@ -432,16 +476,15 @@ export function JournalEntryForm({
               className="bg-zinc-950"
             />
           </label>
+          <label className="grid gap-1 text-sm font-semibold text-zinc-300">
+            Profit amount ($)
+            <DecimalInput
+              value={form.profitAmount}
+              onChange={(event) => updateField("profitAmount", event.target.value)}
+              className="bg-zinc-950"
+            />
+          </label>
         </div>
-
-        <label className="grid gap-1 text-sm font-semibold text-zinc-300">
-          Profit amount ($)
-          <DecimalInput
-            value={form.profitAmount}
-            onChange={(event) => updateField("profitAmount", event.target.value)}
-            className="bg-zinc-950"
-          />
-        </label>
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <label className="grid gap-1 text-sm font-semibold text-zinc-300">

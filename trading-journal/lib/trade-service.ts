@@ -5,12 +5,17 @@ import { getSessionUser, isAdminDemoUser } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import {
   isJournalPair,
-  isJournalStrategy,
   isTradeSelfRating,
+  isTradeSpecies,
   type TradeLevelPushInput,
   type TradeScreenshot,
   type TradeSelfRating,
+  type TradeSpecies,
 } from "@/lib/journal-constants";
+import {
+  assertValidJournalStrategyForUser,
+  UserJournalStrategyServiceError,
+} from "@/lib/user-journal-strategy-service";
 import {
   listUserWatchlistSymbols,
 } from "@/lib/watchlist-ticker-service";
@@ -29,6 +34,7 @@ export type TradeInput = {
   profitPercent: number;
   profitAmount: number;
   strategy: Trade["strategy"];
+  species: TradeSpecies;
   position?: Trade["position"] | null;
   notes?: string | null;
   stopLoss?: number | null;
@@ -75,8 +81,22 @@ function assertValidOutcome(outcome: string): outcome is TradeOutcome {
   return outcome === "WIN" || outcome === "LOSS";
 }
 
-function assertValidStrategy(strategy: string): strategy is Trade["strategy"] {
-  return isJournalStrategy(strategy);
+function parseRequiredSpecies(value: unknown): TradeSpecies {
+  if (typeof value !== "string" || !isTradeSpecies(value)) {
+    throw new TradeServiceError("species must be Stocks, Perps, or Futures.");
+  }
+  return value;
+}
+
+async function resolveStrategyForUser(userId: string, strategy: string) {
+  try {
+    return await assertValidJournalStrategyForUser(userId, strategy);
+  } catch (error) {
+    if (error instanceof UserJournalStrategyServiceError) {
+      throw new TradeServiceError(error.message, error.status);
+    }
+    throw error;
+  }
 }
 
 async function assertValidPair(pair: string, userId: string) {
@@ -203,10 +223,8 @@ export function parseTradeInput(body: unknown): TradeInput {
   if (typeof candidate.profitAmount !== "number" || !Number.isFinite(candidate.profitAmount)) {
     throw new TradeServiceError("profitAmount must be a number.");
   }
-  if (!candidate.strategy || !assertValidStrategy(candidate.strategy)) {
-    throw new TradeServiceError(
-      "strategy must be BouncyBall Breakout, Backside trade, Support zone rebounce, or Capitulation V.",
-    );
+  if (!candidate.strategy?.trim()) {
+    throw new TradeServiceError("strategy is required.");
   }
 
   const chartData = candidate.chartData ?? [];
@@ -220,7 +238,8 @@ export function parseTradeInput(body: unknown): TradeInput {
     outcome: candidate.outcome,
     profitPercent: candidate.profitPercent,
     profitAmount: candidate.profitAmount,
-    strategy: candidate.strategy,
+    strategy: candidate.strategy.trim(),
+    species: parseRequiredSpecies(candidate.species),
     position: candidate.position ?? null,
     notes: candidate.notes ?? null,
     stopLoss: parseOptionalNumber(candidate.stopLoss, "stopLoss"),
@@ -277,10 +296,13 @@ export function parseTradePatch(body: unknown): Partial<TradeInput> {
     patch.profitAmount = candidate.profitAmount;
   }
   if (candidate.strategy !== undefined) {
-    if (!assertValidStrategy(candidate.strategy)) {
-      throw new TradeServiceError("strategy is invalid.");
+    if (!candidate.strategy.trim()) {
+      throw new TradeServiceError("strategy cannot be empty.");
     }
-    patch.strategy = candidate.strategy;
+    patch.strategy = candidate.strategy.trim();
+  }
+  if (candidate.species !== undefined) {
+    patch.species = parseRequiredSpecies(candidate.species);
   }
   if (candidate.position !== undefined) {
     patch.position = candidate.position ?? null;
@@ -374,6 +396,7 @@ export async function listPersonalTrades(userId: string) {
 
 export async function createPersonalTrade(userId: string, input: TradeInput) {
   await assertValidPair(input.pair, userId);
+  const strategy = await resolveStrategyForUser(userId, input.strategy);
   const db = getDb();
   const [row] = await db
     .insert(trades)
@@ -384,7 +407,8 @@ export async function createPersonalTrade(userId: string, input: TradeInput) {
       outcome: input.outcome,
       profitPercent: String(input.profitPercent),
       profitAmount: String(input.profitAmount),
-      strategy: input.strategy,
+      strategy,
+      species: input.species,
       position: input.position ?? null,
       notes: input.notes ?? null,
       stopLoss: input.stopLoss === null || input.stopLoss === undefined ? null : String(input.stopLoss),
@@ -427,6 +451,11 @@ export async function updatePersonalTrade(
     await assertValidPair(patch.pair, userId);
   }
 
+  let resolvedStrategy: string | undefined;
+  if (patch.strategy !== undefined) {
+    resolvedStrategy = await resolveStrategyForUser(userId, patch.strategy);
+  }
+
   const db = getDb();
   const [row] = await db
     .update(trades)
@@ -440,7 +469,8 @@ export async function updatePersonalTrade(
       ...(patch.profitAmount !== undefined
         ? { profitAmount: String(patch.profitAmount) }
         : {}),
-      ...(patch.strategy !== undefined ? { strategy: patch.strategy } : {}),
+      ...(resolvedStrategy !== undefined ? { strategy: resolvedStrategy } : {}),
+      ...(patch.species !== undefined ? { species: patch.species } : {}),
       ...(patch.position !== undefined ? { position: patch.position ?? null } : {}),
       ...(patch.notes !== undefined ? { notes: patch.notes ?? null } : {}),
       ...(patch.stopLoss !== undefined

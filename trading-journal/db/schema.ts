@@ -27,6 +27,7 @@ export const trades = pgTable("trades", {
   profitPercent: numeric("profit_percent").notNull(),
   profitAmount: numeric("profit_amount").notNull(),
   strategy: text("strategy").notNull(),
+  species: text("species"),
   position: text("position"),
   notes: text("notes"),
   stopLoss: numeric("stop_loss"),
@@ -97,6 +98,24 @@ export const userWatchlistTickers = pgTable(
 
 export type UserWatchlistTickerRow = typeof userWatchlistTickers.$inferSelect;
 export type UserWatchlistTickerInsert = typeof userWatchlistTickers.$inferInsert;
+
+export const userJournalStrategies = pgTable(
+  "user_journal_strategies",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id").notNull(),
+    name: text("name").notNull(),
+    description: text("description"),
+    color: text("color"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [unique("user_journal_strategies_user_name_unique").on(table.userId, table.name)],
+);
+
+export type UserJournalStrategyRow = typeof userJournalStrategies.$inferSelect;
+export type UserJournalStrategyInsert = typeof userJournalStrategies.$inferInsert;
 
 export const dailyOverviews = pgTable(
   "daily_overviews",

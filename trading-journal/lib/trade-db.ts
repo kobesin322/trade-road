@@ -4,10 +4,12 @@ import { type TradeLevelPushRow, type TradeRow, tradeLevelPushes, trades } from 
 import { getDb } from "@/lib/db";
 import {
   isTradeSelfRating,
+  isTradeSpecies,
   normalizeJournalStrategy,
   type TradeLevelPush,
   type TradeScreenshot,
   type TradeSelfRating,
+  type TradeSpecies,
 } from "@/lib/journal-constants";
 import type { Trade, TradeOutcome } from "@/lib/trades";
 
@@ -23,6 +25,13 @@ function normalizeSelfRating(value: string | null | undefined): TradeSelfRating 
     return null;
   }
   return value;
+}
+
+function normalizeSpecies(value: string | null | undefined): TradeSpecies {
+  if (value && isTradeSpecies(value)) {
+    return value;
+  }
+  return "Stocks";
 }
 
 function optionalNumber(value: string | null | undefined) {
@@ -59,6 +68,7 @@ export function rowToTrade(row: TradeRow, levelPushes: TradeLevelPush[] = []): T
     profitPercent: Number(row.profitPercent),
     profitAmount: Number(row.profitAmount),
     strategy: normalizeJournalStrategy(row.strategy),
+    species: normalizeSpecies(row.species),
     position: normalizePosition(row.position),
     notes: row.notes ?? null,
     stopLoss: optionalNumber(row.stopLoss),
@@ -104,6 +114,7 @@ export function tradeRecordToTrade(record: TradeRecord): Trade {
     profitPercent: record.profitPercent,
     profitAmount: record.profitAmount,
     strategy: record.strategy,
+    species: record.species,
     position: record.position,
     notes: record.notes,
     stopLoss: record.stopLoss,

@@ -3,6 +3,7 @@ import type {
   TradeLevelPush,
   TradeScreenshot,
   TradeSelfRating,
+  TradeSpecies,
 } from "@/lib/journal-constants";
 
 import { eachDayOfInterval, endOfMonth, format, startOfMonth } from "date-fns";
@@ -17,6 +18,7 @@ export type Trade = {
   profitPercent: number;
   profitAmount: number;
   strategy: JournalStrategy;
+  species?: TradeSpecies;
   position: "LONG" | "SHORT";
   notes?: string | null;
   stopLoss?: number | null;
