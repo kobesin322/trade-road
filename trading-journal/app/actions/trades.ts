@@ -129,6 +129,7 @@ export async function buildTradesCsv(): Promise<string> {
     "rating_sizing",
     "rating_entry",
     "rating_exit",
+    "entry_point",
     "journal_html",
     "screenshot_count",
   ];
@@ -150,6 +151,7 @@ export async function buildTradesCsv(): Promise<string> {
         trade.ratingSizing ?? "",
         trade.ratingEntry ?? "",
         trade.ratingExit ?? "",
+        trade.entryPoint ?? "",
         trade.journalHtml ?? "",
         String(trade.screenshots?.length ?? 0),
       ]

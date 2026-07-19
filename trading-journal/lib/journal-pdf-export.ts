@@ -219,6 +219,7 @@ function buildTradeSections(trade: Trade, index: number, total: number) {
     {
       heading: "Risk Management",
       lines: [
+        `Entry Point: ${trade.entryPoint ?? "—"}`,
         `Stop Loss: ${trade.stopLoss ?? "—"}`,
         `Take Profit: ${trade.takeProfit ?? "—"}`,
         `Risk/Reward: ${trade.riskRewardRatio != null ? `${trade.riskRewardRatio}R` : "—"}`,

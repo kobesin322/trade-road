@@ -1411,9 +1411,9 @@ function JournalView({
           </button>
         ))}
       </div>
-      <div className="grid gap-5 xl:grid-cols-[1.45fr_0.75fr] xl:gap-10">
-      <Card className="overflow-hidden">
-        <CardHeader className="space-y-4 px-4 pt-4 lg:px-6 lg:pt-6">
+      <div className="grid gap-5 lg:grid-cols-2 lg:items-stretch lg:gap-6 lg:h-[calc(100dvh-13.5rem)]">
+      <Card className="flex min-h-0 flex-col overflow-hidden lg:max-h-full">
+        <CardHeader className="shrink-0 space-y-4 px-4 pt-4 lg:px-6 lg:pt-6">
           <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-3">
               <div>
@@ -1518,7 +1518,7 @@ function JournalView({
           ) : null}
           {pdfExportMessage ? <p className="text-xs text-amber-200">{pdfExportMessage}</p> : null}
         </CardHeader>
-        <CardContent className="px-3 pb-4 lg:px-6 lg:pb-6">
+        <CardContent className="min-h-0 flex-1 overflow-y-auto px-3 pb-4 lg:px-6 lg:pb-6">
           {journalTab === "List overview" && (
             <div className="overflow-hidden rounded-3xl border border-white/10">
               <div className="grid grid-cols-[auto_1.2fr_0.8fr_0.9fr_0.8fr_0.9fr] bg-white/[0.06] px-4 py-3 text-xs font-bold uppercase tracking-[0.18em] text-zinc-500 max-lg:hidden">
@@ -1631,6 +1631,7 @@ function JournalView({
         </CardContent>
       </Card>
 
+      <div className="min-h-0 overflow-y-auto lg:max-h-full lg:pr-1">
       {journalEditorMode === "closed" ? (
         <TradeDetail
           chartsReady={chartsReady}
@@ -1647,6 +1648,7 @@ function JournalView({
           onSaved={onJournalSaved}
         />
       )}
+      </div>
       </div>
     </section>
   );
@@ -1699,7 +1701,7 @@ function TradeDetail({
 }) {
   if (!trade) {
     return (
-      <Card className="sticky top-4 h-fit overflow-hidden border-cyan-300/20">
+      <Card className="sticky top-4 h-fit overflow-hidden border-cyan-300/20 lg:static lg:h-auto">
         <CardHeader>
           <CardTitle>No trade selected</CardTitle>
           <p className="mt-1 text-sm text-zinc-400">Pick a row from the journal list to inspect a setup.</p>
@@ -1709,7 +1711,7 @@ function TradeDetail({
   }
 
   return (
-    <Card className="sticky top-4 h-fit overflow-hidden border-cyan-300/20">
+    <Card className="sticky top-4 h-fit overflow-hidden border-cyan-300/20 lg:static lg:h-auto">
       <CardHeader>
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -1737,8 +1739,17 @@ function TradeDetail({
           <div className="mt-1 text-sm font-semibold text-cyan-100">{trade.strategy}</div>
         </div>
 
-        {trade.stopLoss != null || trade.takeProfit != null || trade.riskRewardRatio != null ? (
-          <div className="mt-4 grid grid-cols-3 gap-3">
+        {trade.entryPoint != null ||
+        trade.stopLoss != null ||
+        trade.takeProfit != null ||
+        trade.riskRewardRatio != null ? (
+          <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+              <div className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">EP</div>
+              <div className="mt-1 font-mono text-sm font-black text-sky-200">
+                {trade.entryPoint != null ? trade.entryPoint : "—"}
+              </div>
+            </div>
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
               <div className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">SL</div>
               <div className="mt-1 font-mono text-sm font-black text-rose-200">

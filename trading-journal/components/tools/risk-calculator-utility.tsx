@@ -127,6 +127,7 @@ export function RiskCalculatorUtility({
           position: side,
           stopLoss: parseNumber(stopLoss) || null,
           takeProfit: parseNumber(takeProfit) || null,
+          entryPoint: parseNumber(entry) || null,
           riskRewardRatio: result.rewardRiskRatio,
           levelPushes: [],
           journalHtml: buildCalculatorJournalHtml(input, result),

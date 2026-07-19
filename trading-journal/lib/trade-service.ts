@@ -34,6 +34,7 @@ export type TradeInput = {
   stopLoss?: number | null;
   takeProfit?: number | null;
   riskRewardRatio?: number | null;
+  entryPoint?: number | null;
   ratingOverall?: TradeSelfRating | null;
   ratingSizing?: TradeSelfRating | null;
   ratingEntry?: TradeSelfRating | null;
@@ -225,6 +226,7 @@ export function parseTradeInput(body: unknown): TradeInput {
     stopLoss: parseOptionalNumber(candidate.stopLoss, "stopLoss"),
     takeProfit: parseOptionalNumber(candidate.takeProfit, "takeProfit"),
     riskRewardRatio: parseOptionalNumber(candidate.riskRewardRatio, "riskRewardRatio"),
+    entryPoint: parseOptionalNumber(candidate.entryPoint, "entryPoint"),
     ratingOverall: parseOptionalSelfRating(candidate.ratingOverall, "ratingOverall"),
     ratingSizing: parseOptionalSelfRating(candidate.ratingSizing, "ratingSizing"),
     ratingEntry: parseOptionalSelfRating(candidate.ratingEntry, "ratingEntry"),
@@ -297,6 +299,9 @@ export function parseTradePatch(body: unknown): Partial<TradeInput> {
   }
   if (candidate.riskRewardRatio !== undefined) {
     patch.riskRewardRatio = parseOptionalNumber(candidate.riskRewardRatio, "riskRewardRatio");
+  }
+  if (candidate.entryPoint !== undefined) {
+    patch.entryPoint = parseOptionalNumber(candidate.entryPoint, "entryPoint");
   }
   if (candidate.ratingOverall !== undefined) {
     patch.ratingOverall = parseOptionalSelfRating(candidate.ratingOverall, "ratingOverall");
@@ -389,6 +394,8 @@ export async function createPersonalTrade(userId: string, input: TradeInput) {
         input.riskRewardRatio === null || input.riskRewardRatio === undefined
           ? null
           : String(input.riskRewardRatio),
+      entryPoint:
+        input.entryPoint === null || input.entryPoint === undefined ? null : String(input.entryPoint),
       ratingOverall: input.ratingOverall ?? null,
       ratingSizing: input.ratingSizing ?? null,
       ratingEntry: input.ratingEntry ?? null,
@@ -447,6 +454,9 @@ export async function updatePersonalTrade(
             riskRewardRatio:
               patch.riskRewardRatio === null ? null : String(patch.riskRewardRatio),
           }
+        : {}),
+      ...(patch.entryPoint !== undefined
+        ? { entryPoint: patch.entryPoint === null ? null : String(patch.entryPoint) }
         : {}),
       ...(patch.ratingOverall !== undefined ? { ratingOverall: patch.ratingOverall ?? null } : {}),
       ...(patch.ratingSizing !== undefined ? { ratingSizing: patch.ratingSizing ?? null } : {}),

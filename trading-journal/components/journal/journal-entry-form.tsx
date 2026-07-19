@@ -46,13 +46,20 @@ type PendingScreenshot = {
 
 type JournalFormState = Omit<
   JournalEntryInput,
-  "profitPercent" | "profitAmount" | "stopLoss" | "takeProfit" | "riskRewardRatio" | "levelPushes"
+  | "profitPercent"
+  | "profitAmount"
+  | "stopLoss"
+  | "takeProfit"
+  | "riskRewardRatio"
+  | "entryPoint"
+  | "levelPushes"
 > & {
   profitPercent: string;
   profitAmount: string;
   stopLoss: string;
   takeProfit: string;
   riskRewardRatio: string;
+  entryPoint: string;
   levelPushes: LevelPushFormRow[];
 };
 
@@ -76,6 +83,7 @@ function emptyForm(): JournalFormState {
     stopLoss: "",
     takeProfit: "",
     riskRewardRatio: "",
+    entryPoint: "",
     ratingOverall: null,
     ratingSizing: null,
     ratingEntry: null,
@@ -99,6 +107,7 @@ function tradeToForm(trade: Trade): JournalFormState {
     stopLoss: decimalInputString(trade.stopLoss),
     takeProfit: decimalInputString(trade.takeProfit),
     riskRewardRatio: decimalInputString(trade.riskRewardRatio),
+    entryPoint: decimalInputString(trade.entryPoint),
     ratingOverall: trade.ratingOverall ?? null,
     ratingSizing: trade.ratingSizing ?? null,
     ratingEntry: trade.ratingEntry ?? null,
@@ -145,6 +154,11 @@ function parseForm(
     return { ok: false, message: "Risk reward must be a valid number." };
   }
 
+  const entryPoint = parseOptionalDecimalInput(form.entryPoint);
+  if (form.entryPoint.trim() && entryPoint === null) {
+    return { ok: false, message: "Entry point must be a valid number." };
+  }
+
   const levelPushes: TradeLevelPushInput[] = [];
   for (const [index, push] of form.levelPushes.entries()) {
     const price = parseOptionalDecimalInput(push.price);
@@ -175,6 +189,7 @@ function parseForm(
       stopLoss,
       takeProfit,
       riskRewardRatio,
+      entryPoint,
       ratingOverall: form.ratingOverall,
       ratingSizing: form.ratingSizing,
       ratingEntry: form.ratingEntry,
@@ -326,7 +341,7 @@ export function JournalEntryForm({
   }
 
   return (
-    <Card className="sticky top-4 h-fit overflow-hidden border-cyan-300/20">
+    <Card className="sticky top-4 h-fit overflow-hidden border-cyan-300/20 lg:static lg:h-auto">
       <CardHeader>
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -428,7 +443,16 @@ export function JournalEntryForm({
           />
         </label>
 
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <label className="grid gap-1 text-sm font-semibold text-zinc-300">
+            EP (optional)
+            <DecimalInput
+              value={form.entryPoint}
+              onChange={(event) => updateField("entryPoint", event.target.value)}
+              className="bg-zinc-950"
+              placeholder="Entry point"
+            />
+          </label>
           <label className="grid gap-1 text-sm font-semibold text-zinc-300">
             SL (optional)
             <DecimalInput

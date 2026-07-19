@@ -22,6 +22,7 @@ export type Trade = {
   stopLoss?: number | null;
   takeProfit?: number | null;
   riskRewardRatio?: number | null;
+  entryPoint?: number | null;
   ratingOverall?: TradeSelfRating | null;
   ratingSizing?: TradeSelfRating | null;
   ratingEntry?: TradeSelfRating | null;

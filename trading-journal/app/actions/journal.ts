@@ -37,6 +37,7 @@ function toTradeInput(entry: JournalEntryInput): TradeInput {
     stopLoss: entry.stopLoss ?? null,
     takeProfit: entry.takeProfit ?? null,
     riskRewardRatio: entry.riskRewardRatio ?? null,
+    entryPoint: entry.entryPoint ?? null,
     ratingOverall: entry.ratingOverall ?? null,
     ratingSizing: entry.ratingSizing ?? null,
     ratingEntry: entry.ratingEntry ?? null,
