@@ -224,6 +224,15 @@ function buildTradeSections(trade: Trade, index: number, total: number) {
         `Risk/Reward: ${trade.riskRewardRatio != null ? `${trade.riskRewardRatio}R` : "—"}`,
       ],
     },
+    {
+      heading: "Self-rated ranking",
+      lines: [
+        `Overall trade: ${trade.ratingOverall ?? "—"}`,
+        `Sizing Management: ${trade.ratingSizing ?? "—"}`,
+        `Entry: ${trade.ratingEntry ?? "—"}`,
+        `Exit Management: ${trade.ratingExit ?? "—"}`,
+      ],
+    },
   ];
 
   if (trade.notes?.trim()) {

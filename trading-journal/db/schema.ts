@@ -32,6 +32,10 @@ export const trades = pgTable("trades", {
   stopLoss: numeric("stop_loss"),
   takeProfit: numeric("take_profit"),
   riskRewardRatio: numeric("risk_reward_ratio"),
+  ratingOverall: text("rating_overall"),
+  ratingSizing: text("rating_sizing"),
+  ratingEntry: text("rating_entry"),
+  ratingExit: text("rating_exit"),
   journalHtml: text("journal_html"),
   screenshots: jsonb("screenshots")
     .$type<TradeScreenshot[]>()

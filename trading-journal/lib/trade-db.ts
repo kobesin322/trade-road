@@ -3,9 +3,11 @@ import { asc, eq, inArray } from "drizzle-orm";
 import { type TradeLevelPushRow, type TradeRow, tradeLevelPushes, trades } from "@/db/schema";
 import { getDb } from "@/lib/db";
 import {
+  isTradeSelfRating,
   normalizeJournalStrategy,
   type TradeLevelPush,
   type TradeScreenshot,
+  type TradeSelfRating,
 } from "@/lib/journal-constants";
 import type { Trade, TradeOutcome } from "@/lib/trades";
 
@@ -14,6 +16,13 @@ function normalizePosition(value: string | null): Trade["position"] {
     return "SHORT";
   }
   return "LONG";
+}
+
+function normalizeSelfRating(value: string | null | undefined): TradeSelfRating | null {
+  if (!value || !isTradeSelfRating(value)) {
+    return null;
+  }
+  return value;
 }
 
 function optionalNumber(value: string | null | undefined) {
@@ -55,6 +64,10 @@ export function rowToTrade(row: TradeRow, levelPushes: TradeLevelPush[] = []): T
     stopLoss: optionalNumber(row.stopLoss),
     takeProfit: optionalNumber(row.takeProfit),
     riskRewardRatio: optionalNumber(row.riskRewardRatio),
+    ratingOverall: normalizeSelfRating(row.ratingOverall),
+    ratingSizing: normalizeSelfRating(row.ratingSizing),
+    ratingEntry: normalizeSelfRating(row.ratingEntry),
+    ratingExit: normalizeSelfRating(row.ratingExit),
     levelPushes,
     journalHtml: row.journalHtml ?? null,
     screenshots: Array.isArray(row.screenshots) ? row.screenshots : [],
@@ -95,6 +108,10 @@ export function tradeRecordToTrade(record: TradeRecord): Trade {
     stopLoss: record.stopLoss,
     takeProfit: record.takeProfit,
     riskRewardRatio: record.riskRewardRatio,
+    ratingOverall: record.ratingOverall,
+    ratingSizing: record.ratingSizing,
+    ratingEntry: record.ratingEntry,
+    ratingExit: record.ratingExit,
     levelPushes: record.levelPushes ?? [],
     journalHtml: record.journalHtml,
     screenshots: record.screenshots,

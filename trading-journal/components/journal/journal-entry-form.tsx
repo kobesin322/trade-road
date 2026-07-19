@@ -19,11 +19,14 @@ import { Input } from "@/components/ui/input";
 import {
   JOURNAL_PAIR_OPTIONS,
   JOURNAL_STRATEGIES,
+  TRADE_SELF_RATING_FIELDS,
+  TRADE_SELF_RATINGS,
   type JournalEntryInput,
   type JournalScreenshotUpload,
   type JournalStrategy,
   type TradeLevelPushInput,
   type TradeScreenshot,
+  type TradeSelfRating,
 } from "@/lib/journal-constants";
 import {
   decimalInputString,
@@ -73,6 +76,10 @@ function emptyForm(): JournalFormState {
     stopLoss: "",
     takeProfit: "",
     riskRewardRatio: "",
+    ratingOverall: null,
+    ratingSizing: null,
+    ratingEntry: null,
+    ratingExit: null,
     levelPushes: [],
     journalHtml: "",
     screenshots: [],
@@ -92,6 +99,10 @@ function tradeToForm(trade: Trade): JournalFormState {
     stopLoss: decimalInputString(trade.stopLoss),
     takeProfit: decimalInputString(trade.takeProfit),
     riskRewardRatio: decimalInputString(trade.riskRewardRatio),
+    ratingOverall: trade.ratingOverall ?? null,
+    ratingSizing: trade.ratingSizing ?? null,
+    ratingEntry: trade.ratingEntry ?? null,
+    ratingExit: trade.ratingExit ?? null,
     levelPushes:
       trade.levelPushes?.map((push) => ({
         id: push.id,
@@ -164,6 +175,10 @@ function parseForm(
       stopLoss,
       takeProfit,
       riskRewardRatio,
+      ratingOverall: form.ratingOverall,
+      ratingSizing: form.ratingSizing,
+      ratingEntry: form.ratingEntry,
+      ratingExit: form.ratingExit,
       levelPushes,
       journalHtml: form.journalHtml,
       screenshots: form.screenshots,
@@ -447,6 +462,37 @@ export function JournalEntryForm({
           pushes={form.levelPushes}
           onChange={(levelPushes) => updateField("levelPushes", levelPushes)}
         />
+
+        <div className="grid gap-3">
+          <div>
+            <span className="text-sm font-semibold text-zinc-300">Self-rated ranking</span>
+            <p className="mt-1 text-xs text-zinc-500">Optional grades for process quality.</p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {TRADE_SELF_RATING_FIELDS.map((field) => (
+              <label key={field.key} className="grid gap-1 text-sm font-semibold text-zinc-300">
+                {field.label}
+                <select
+                  value={form[field.key] ?? ""}
+                  onChange={(event) =>
+                    updateField(
+                      field.key,
+                      (event.target.value || null) as TradeSelfRating | null,
+                    )
+                  }
+                  className="h-11 rounded-2xl border border-white/10 bg-zinc-950 px-3 text-sm font-semibold text-white outline-none focus:border-cyan-300/60"
+                >
+                  <option value="">Not rated</option>
+                  {TRADE_SELF_RATINGS.map((grade) => (
+                    <option key={grade} value={grade}>
+                      {grade}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ))}
+          </div>
+        </div>
 
         <div className="grid gap-2">
           <div className="flex items-center justify-between gap-2">

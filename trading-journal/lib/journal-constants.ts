@@ -10,6 +10,23 @@ export const JOURNAL_STRATEGIES = [
 
 export type JournalStrategy = (typeof JOURNAL_STRATEGIES)[number];
 
+export const TRADE_SELF_RATINGS = ["A+", "A", "B+", "B", "C+", "C", "D"] as const;
+
+export type TradeSelfRating = (typeof TRADE_SELF_RATINGS)[number];
+
+export const TRADE_SELF_RATING_FIELDS = [
+  { key: "ratingOverall", label: "Overall trade" },
+  { key: "ratingSizing", label: "Sizing Management" },
+  { key: "ratingEntry", label: "Entry" },
+  { key: "ratingExit", label: "Exit Management" },
+] as const;
+
+export type TradeSelfRatingField = (typeof TRADE_SELF_RATING_FIELDS)[number]["key"];
+
+export function isTradeSelfRating(value: string): value is TradeSelfRating {
+  return TRADE_SELF_RATINGS.includes(value as TradeSelfRating);
+}
+
 export type TradeScreenshot = {
   name: string;
   url: string;
@@ -64,6 +81,10 @@ export type JournalEntryInput = {
   stopLoss?: number | null;
   takeProfit?: number | null;
   riskRewardRatio?: number | null;
+  ratingOverall?: TradeSelfRating | null;
+  ratingSizing?: TradeSelfRating | null;
+  ratingEntry?: TradeSelfRating | null;
+  ratingExit?: TradeSelfRating | null;
   levelPushes: TradeLevelPushInput[];
   journalHtml: string;
   screenshots: TradeScreenshot[];

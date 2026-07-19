@@ -8,6 +8,7 @@ import {
   type JournalScreenshotUpload,
   isJournalPair,
   isJournalStrategy,
+  isTradeSelfRating,
 } from "@/lib/journal-constants";
 import { uploadJournalScreenshots } from "@/lib/journal-screenshots";
 import { tradeRecordToTrade } from "@/lib/trade-db";
@@ -36,6 +37,10 @@ function toTradeInput(entry: JournalEntryInput): TradeInput {
     stopLoss: entry.stopLoss ?? null,
     takeProfit: entry.takeProfit ?? null,
     riskRewardRatio: entry.riskRewardRatio ?? null,
+    ratingOverall: entry.ratingOverall ?? null,
+    ratingSizing: entry.ratingSizing ?? null,
+    ratingEntry: entry.ratingEntry ?? null,
+    ratingExit: entry.ratingExit ?? null,
     levelPushes: entry.levelPushes,
     journalHtml: entry.journalHtml || null,
     screenshots: entry.screenshots,
@@ -73,6 +78,19 @@ function validateJournalEntry(
       return `Push record ${index + 1} needs a push time.`;
     }
   }
+
+  const ratings = [
+    entry.ratingOverall,
+    entry.ratingSizing,
+    entry.ratingEntry,
+    entry.ratingExit,
+  ];
+  for (const rating of ratings) {
+    if (rating != null && !isTradeSelfRating(rating)) {
+      return "Self-rated ranking must be one of A+, A, B+, B, C+, C, D.";
+    }
+  }
+
   return null;
 }
 

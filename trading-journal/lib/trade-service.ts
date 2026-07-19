@@ -6,8 +6,10 @@ import { getDb } from "@/lib/db";
 import {
   isJournalPair,
   isJournalStrategy,
+  isTradeSelfRating,
   type TradeLevelPushInput,
   type TradeScreenshot,
+  type TradeSelfRating,
 } from "@/lib/journal-constants";
 import {
   listUserWatchlistSymbols,
@@ -32,6 +34,10 @@ export type TradeInput = {
   stopLoss?: number | null;
   takeProfit?: number | null;
   riskRewardRatio?: number | null;
+  ratingOverall?: TradeSelfRating | null;
+  ratingSizing?: TradeSelfRating | null;
+  ratingEntry?: TradeSelfRating | null;
+  ratingExit?: TradeSelfRating | null;
   levelPushes?: TradeLevelPushInput[];
   journalHtml?: string | null;
   screenshots?: TradeScreenshot[];
@@ -95,6 +101,18 @@ function parseOptionalNumber(value: unknown, field: string) {
 
   if (typeof value !== "number" || !Number.isFinite(value)) {
     throw new TradeServiceError(`${field} must be a number.`);
+  }
+
+  return value;
+}
+
+function parseOptionalSelfRating(value: unknown, field: string): TradeSelfRating | null {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+
+  if (typeof value !== "string" || !isTradeSelfRating(value)) {
+    throw new TradeServiceError(`${field} must be one of A+, A, B+, B, C+, C, D.`);
   }
 
   return value;
@@ -207,6 +225,10 @@ export function parseTradeInput(body: unknown): TradeInput {
     stopLoss: parseOptionalNumber(candidate.stopLoss, "stopLoss"),
     takeProfit: parseOptionalNumber(candidate.takeProfit, "takeProfit"),
     riskRewardRatio: parseOptionalNumber(candidate.riskRewardRatio, "riskRewardRatio"),
+    ratingOverall: parseOptionalSelfRating(candidate.ratingOverall, "ratingOverall"),
+    ratingSizing: parseOptionalSelfRating(candidate.ratingSizing, "ratingSizing"),
+    ratingEntry: parseOptionalSelfRating(candidate.ratingEntry, "ratingEntry"),
+    ratingExit: parseOptionalSelfRating(candidate.ratingExit, "ratingExit"),
     levelPushes: parseLevelPushes(candidate.levelPushes) ?? [],
     journalHtml: candidate.journalHtml ?? null,
     screenshots: parseScreenshots(candidate.screenshots) ?? [],
@@ -275,6 +297,18 @@ export function parseTradePatch(body: unknown): Partial<TradeInput> {
   }
   if (candidate.riskRewardRatio !== undefined) {
     patch.riskRewardRatio = parseOptionalNumber(candidate.riskRewardRatio, "riskRewardRatio");
+  }
+  if (candidate.ratingOverall !== undefined) {
+    patch.ratingOverall = parseOptionalSelfRating(candidate.ratingOverall, "ratingOverall");
+  }
+  if (candidate.ratingSizing !== undefined) {
+    patch.ratingSizing = parseOptionalSelfRating(candidate.ratingSizing, "ratingSizing");
+  }
+  if (candidate.ratingEntry !== undefined) {
+    patch.ratingEntry = parseOptionalSelfRating(candidate.ratingEntry, "ratingEntry");
+  }
+  if (candidate.ratingExit !== undefined) {
+    patch.ratingExit = parseOptionalSelfRating(candidate.ratingExit, "ratingExit");
   }
   if (candidate.levelPushes !== undefined) {
     patch.levelPushes = parseLevelPushes(candidate.levelPushes) ?? [];
@@ -355,6 +389,10 @@ export async function createPersonalTrade(userId: string, input: TradeInput) {
         input.riskRewardRatio === null || input.riskRewardRatio === undefined
           ? null
           : String(input.riskRewardRatio),
+      ratingOverall: input.ratingOverall ?? null,
+      ratingSizing: input.ratingSizing ?? null,
+      ratingEntry: input.ratingEntry ?? null,
+      ratingExit: input.ratingExit ?? null,
       journalHtml: input.journalHtml ?? null,
       screenshots: input.screenshots ?? [],
       chartData: input.chartData ?? [],
@@ -410,6 +448,10 @@ export async function updatePersonalTrade(
               patch.riskRewardRatio === null ? null : String(patch.riskRewardRatio),
           }
         : {}),
+      ...(patch.ratingOverall !== undefined ? { ratingOverall: patch.ratingOverall ?? null } : {}),
+      ...(patch.ratingSizing !== undefined ? { ratingSizing: patch.ratingSizing ?? null } : {}),
+      ...(patch.ratingEntry !== undefined ? { ratingEntry: patch.ratingEntry ?? null } : {}),
+      ...(patch.ratingExit !== undefined ? { ratingExit: patch.ratingExit ?? null } : {}),
       ...(patch.journalHtml !== undefined ? { journalHtml: patch.journalHtml ?? null } : {}),
       ...(patch.screenshots !== undefined ? { screenshots: patch.screenshots } : {}),
       ...(patch.chartData !== undefined ? { chartData: patch.chartData } : {}),

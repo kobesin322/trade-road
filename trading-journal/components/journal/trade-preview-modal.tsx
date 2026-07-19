@@ -8,6 +8,7 @@ import { createPortal } from "react-dom";
 import { ScreenshotGallery } from "@/components/journal/screenshot-gallery";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { TRADE_SELF_RATING_FIELDS } from "@/lib/journal-constants";
 import { openTradeJournalInNewTab } from "@/lib/journal-navigation";
 import type { Trade } from "@/lib/trades";
 import { cn } from "@/lib/utils";
@@ -120,6 +121,30 @@ export function TradePreviewModal({ trade, onClose }: TradePreviewModalProps) {
               </div>
             </div>
           </div>
+
+          {TRADE_SELF_RATING_FIELDS.some((field) => trade[field.key]) ? (
+            <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
+              <div className="mb-3 text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">
+                Self-rated ranking
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                {TRADE_SELF_RATING_FIELDS.map((field) => {
+                  const grade = trade[field.key];
+                  if (!grade) {
+                    return null;
+                  }
+                  return (
+                    <div key={field.key} className="rounded-xl bg-white/[0.04] px-3 py-2.5">
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
+                        {field.label}
+                      </div>
+                      <div className="mt-1 text-lg font-black text-cyan-200">{grade}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
 
           {trade.journalHtml ? (
             <div className="rounded-2xl border border-white/10 bg-black/25 p-4">

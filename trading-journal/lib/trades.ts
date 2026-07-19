@@ -1,4 +1,9 @@
-import type { JournalStrategy, TradeScreenshot, TradeLevelPush } from "@/lib/journal-constants";
+import type {
+  JournalStrategy,
+  TradeLevelPush,
+  TradeScreenshot,
+  TradeSelfRating,
+} from "@/lib/journal-constants";
 
 import { eachDayOfInterval, endOfMonth, format, startOfMonth } from "date-fns";
 
@@ -17,6 +22,10 @@ export type Trade = {
   stopLoss?: number | null;
   takeProfit?: number | null;
   riskRewardRatio?: number | null;
+  ratingOverall?: TradeSelfRating | null;
+  ratingSizing?: TradeSelfRating | null;
+  ratingEntry?: TradeSelfRating | null;
+  ratingExit?: TradeSelfRating | null;
   levelPushes?: TradeLevelPush[];
   journalHtml?: string | null;
   screenshots?: TradeScreenshot[];
