@@ -32,7 +32,6 @@ const MAX_SCREENSHOTS_PER_SECTION = 6;
 
 type DailyOverviewPanelProps = {
   canUsePersonalJournal: boolean;
-  demoTradesEnabled: boolean;
   personalTrades: Trade[];
   dailyOverviews: DailyOverview[];
   initialDate?: string;
@@ -71,7 +70,6 @@ function overviewToFields(overview: DailyOverview | undefined) {
 
 export function DailyOverviewPanel({
   canUsePersonalJournal,
-  demoTradesEnabled,
   personalTrades,
   dailyOverviews,
   initialDate,
@@ -132,7 +130,7 @@ export function DailyOverviewPanel({
     setMessage(null);
   }, [selectedDate, currentOverview]);
 
-  const disabled = !canUsePersonalJournal || demoTradesEnabled;
+  const disabled = !canUsePersonalJournal;
 
   function selectDate(date: string) {
     setSelectedDate(date);
@@ -272,8 +270,7 @@ export function DailyOverviewPanel({
         <CardHeader>
           <CardTitle>Daily Overview</CardTitle>
           <p className="mt-1 text-sm text-zinc-400">
-            Turn demo trades off and use a Supabase account to write one daily overview per calendar
-            day.
+            Sign in with a Supabase account to write one daily overview per calendar day.
           </p>
         </CardHeader>
       </Card>

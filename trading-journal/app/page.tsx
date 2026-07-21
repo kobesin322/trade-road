@@ -4,7 +4,6 @@ import { TradingDashboard } from "@/components/trading-dashboard";
 import { getSessionUser, isAdminDemoUser } from "@/lib/auth";
 import { listDailyOverviewsForUser } from "@/lib/daily-overview-db";
 import { listTradesForUser } from "@/lib/trade-db";
-import { getDemoTradesEnabled } from "@/lib/user-preferences";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +21,6 @@ export default async function Home({ searchParams }: HomeProps) {
   const initialTradeId = typeof params.tradeId === "string" ? params.tradeId : undefined;
   const initialView = typeof params.view === "string" ? params.view : undefined;
 
-  const demoTradesEnabled = await getDemoTradesEnabled(user.id);
   const canUsePersonalJournal = Boolean(process.env.DATABASE_URL) && !isAdminDemoUser(user);
   const personalTrades =
     canUsePersonalJournal ? await listTradesForUser(user.id) : [];
@@ -32,7 +30,6 @@ export default async function Home({ searchParams }: HomeProps) {
   return (
     <TradingDashboard
       canUsePersonalJournal={canUsePersonalJournal}
-      demoTradesEnabled={demoTradesEnabled}
       initialTradeId={initialTradeId}
       initialView={initialView}
       personalDailyOverviews={personalDailyOverviews}

@@ -22,7 +22,6 @@ import { cn } from "@/lib/utils";
 
 type StrategySettingsPanelProps = {
   canUsePersonalJournal: boolean;
-  demoTradesEnabled: boolean;
 };
 
 type EditorState =
@@ -42,9 +41,8 @@ function emptyEditorForm() {
 
 export function StrategySettingsPanel({
   canUsePersonalJournal,
-  demoTradesEnabled,
 }: StrategySettingsPanelProps) {
-  const enabled = canUsePersonalJournal && !demoTradesEnabled;
+  const enabled = canUsePersonalJournal;
   const { customStrategies, loading, error, refresh } = useJournalStrategies(enabled);
   const [editor, setEditor] = useState<EditorState>({ mode: "closed" });
   const [form, setForm] = useState(emptyEditorForm);
@@ -138,13 +136,13 @@ export function StrategySettingsPanel({
     });
   }
 
-  if (!canUsePersonalJournal || demoTradesEnabled) {
+  if (!canUsePersonalJournal) {
     return (
       <Card className="overflow-hidden border-cyan-300/20">
         <CardHeader>
           <CardTitle>Strategy Settings</CardTitle>
           <p className="mt-1 text-sm text-zinc-400">
-            Turn off demo mode and sign in with Supabase to manage your custom strategies.
+            Sign in with a Supabase account to manage your custom strategies.
           </p>
         </CardHeader>
       </Card>

@@ -110,7 +110,7 @@ export async function saveJournalEntry(
   if (isAdminDemoUser(user)) {
     return {
       ok: false,
-      message: "Turn off demo mode and sign in with Supabase to save journals.",
+      message: "Sign in with a Supabase account to save journals.",
     };
   }
   if (!process.env.DATABASE_URL) {

@@ -70,7 +70,6 @@ type JournalEntryFormProps = {
   mode: "create" | "edit";
   trade?: Trade | null;
   canUsePersonalJournal?: boolean;
-  demoTradesEnabled?: boolean;
   onCancel: () => void;
   onSaved: (trade: Trade) => void;
   onDeleted?: () => void;
@@ -222,12 +221,11 @@ export function JournalEntryForm({
   mode,
   trade,
   canUsePersonalJournal = true,
-  demoTradesEnabled = false,
   onCancel,
   onSaved,
   onDeleted,
 }: JournalEntryFormProps) {
-  const { customStrategies } = useJournalStrategies(canUsePersonalJournal && !demoTradesEnabled);
+  const { customStrategies } = useJournalStrategies(canUsePersonalJournal);
   const { items: customWatchlist } = useCustomWatchlist();
   const [form, setForm] = useState<JournalFormState>(() =>
     trade ? tradeToForm(trade) : emptyForm(),

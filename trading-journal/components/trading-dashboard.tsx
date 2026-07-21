@@ -55,8 +55,7 @@ import {
   YAxis,
 } from "recharts";
 
-import { buildTradesCsv, seedSampleTrades } from "@/app/actions/trades";
-import { updateDemoTradesPreference } from "@/app/actions/preferences";
+import { buildTradesCsv } from "@/app/actions/trades";
 import { signOut } from "@/app/actions/auth";
 import { MarketChartsView } from "@/components/charts/market-charts-view";
 import { LSPortfolioDashboard } from "@/components/ls-portfolio/ls-portfolio-dashboard";
@@ -75,7 +74,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { getDemoTrades } from "@/lib/demo-trades";
 import {
   getJournalStrategyColor,
   SYSTEM_JOURNAL_STRATEGIES,
@@ -284,7 +282,6 @@ type JournalSection = "trades" | "daily-overview";
 export type TradingDashboardProps = {
   personalTrades: Trade[];
   personalDailyOverviews: DailyOverview[];
-  demoTradesEnabled: boolean;
   canUsePersonalJournal: boolean;
   userId: string;
   userEmail: string;
@@ -295,7 +292,6 @@ export type TradingDashboardProps = {
 export function TradingDashboard({
   personalTrades,
   personalDailyOverviews,
-  demoTradesEnabled: initialDemoTradesEnabled,
   canUsePersonalJournal,
   userId,
   userEmail,
@@ -303,21 +299,14 @@ export function TradingDashboard({
   initialTradeId,
 }: TradingDashboardProps) {
   const router = useRouter();
-  const [demoTradesEnabled, setDemoTradesEnabled] = useState(initialDemoTradesEnabled);
-  const displayTrades = useMemo(
-    () => (demoTradesEnabled ? getDemoTrades() : personalTrades),
-    [demoTradesEnabled, personalTrades],
-  );
-  const [trades, setTrades] = useState<Trade[]>(displayTrades);
+  const [trades, setTrades] = useState<Trade[]>(personalTrades);
   const [activeView, setActiveView] = useState<MainView>("Dashboard");
   const [journalTab, setJournalTab] = useState<JournalTab>("List overview");
   const [journalSection, setJournalSection] = useState<JournalSection>("trades");
   const [query, setQuery] = useState("");
   const [outcomeFilter, setOutcomeFilter] = useState<OutcomeFilter>("ALL");
   const [strategyFilter, setStrategyFilter] = useState<"ALL" | string>("ALL");
-  const { availableStrategies, customStrategies } = useJournalStrategies(
-    canUsePersonalJournal && !demoTradesEnabled,
-  );
+  const { availableStrategies, customStrategies } = useJournalStrategies(canUsePersonalJournal);
   const strategyColorMap = useMemo(
     () => buildCustomStrategyColorMap(customStrategies),
     [customStrategies],
@@ -329,10 +318,9 @@ export function TradingDashboard({
     }
     return Array.from(names).sort((left, right) => left.localeCompare(right));
   }, [availableStrategies, trades]);
-  const [selectedTrade, setSelectedTrade] = useState<Trade | null>(displayTrades[0] ?? null);
+  const [selectedTrade, setSelectedTrade] = useState<Trade | null>(personalTrades[0] ?? null);
   const [confetti, setConfetti] = useState(false);
   const [chartsReady, setChartsReady] = useState(false);
-  const [seedMessage, setSeedMessage] = useState<string | null>(null);
   const [journalEditorMode, setJournalEditorMode] = useState<"closed" | "create" | "edit">("closed");
   const [calendarMonth, setCalendarMonth] = useState(() => startOfMonth(new Date()));
   const [selectedCalendarDate, setSelectedCalendarDate] = useState(() =>
@@ -341,7 +329,7 @@ export function TradingDashboard({
   const [portfolioSnapshotDates, setPortfolioSnapshotDates] = useState<string[]>([]);
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [isPending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
   const isMobile = useIsMobile();
 
   useEffect(() => {
@@ -365,21 +353,17 @@ export function TradingDashboard({
   }
 
   useEffect(() => {
-    setDemoTradesEnabled(initialDemoTradesEnabled);
-  }, [initialDemoTradesEnabled]);
-
-  useEffect(() => {
-    setTrades(displayTrades);
+    setTrades(personalTrades);
     setSelectedTrade((prev) => {
-      if (!displayTrades.length) {
+      if (!personalTrades.length) {
         return null;
       }
       if (!prev) {
-        return displayTrades[0];
+        return personalTrades[0];
       }
-      return displayTrades.find((trade) => trade.id === prev.id) ?? displayTrades[0];
+      return personalTrades.find((trade) => trade.id === prev.id) ?? personalTrades[0];
     });
-  }, [displayTrades]);
+  }, [personalTrades]);
 
   useEffect(() => {
     setChartsReady(true);
@@ -392,7 +376,7 @@ export function TradingDashboard({
     if (!initialTradeId) {
       return;
     }
-    const trade = displayTrades.find((item) => item.id === initialTradeId);
+    const trade = personalTrades.find((item) => item.id === initialTradeId);
     if (!trade) {
       return;
     }
@@ -400,10 +384,10 @@ export function TradingDashboard({
     setJournalSection("trades");
     setJournalEditorMode("closed");
     setSelectedTrade(trade);
-  }, [displayTrades, initialTradeId, initialView]);
+  }, [personalTrades, initialTradeId, initialView]);
 
   useEffect(() => {
-    if (demoTradesEnabled || !canUsePersonalJournal || !hasSupabaseBrowserConfig()) {
+    if (!canUsePersonalJournal || !hasSupabaseBrowserConfig()) {
       return;
     }
 
@@ -427,7 +411,7 @@ export function TradingDashboard({
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [canUsePersonalJournal, demoTradesEnabled, router, userId]);
+  }, [canUsePersonalJournal, router, userId]);
 
   const stats = useMemo(() => getTradeStats(trades), [trades]);
   const dailyProfit = useMemo(() => buildDailyProfit(trades, calendarMonth), [calendarMonth, trades]);
@@ -495,15 +479,6 @@ export function TradingDashboard({
       total,
     };
   }).filter((summary) => summary.trades > 0);
-
-  function handleDemoToggle(enabled: boolean) {
-    setSeedMessage(null);
-    startTransition(async () => {
-      await updateDemoTradesPreference(enabled);
-      setDemoTradesEnabled(enabled);
-      router.refresh();
-    });
-  }
 
   function navigateToView(view: MainView) {
     setActiveView(view);
@@ -697,11 +672,8 @@ export function TradingDashboard({
           ]}
           toolLinks={toolLinks}
           userEmail={userEmail}
-          demoTradesEnabled={demoTradesEnabled}
           tradeCount={personalTrades.length}
           onNavigate={(view) => navigateToView(view as MainView)}
-          onDemoToggle={handleDemoToggle}
-          demoPending={isPending}
         />
 
         <MobileBottomNav
@@ -735,9 +707,7 @@ export function TradingDashboard({
                 </h2>
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                <Badge tone={demoTradesEnabled ? "gold" : "blue"}>
-                  {demoTradesEnabled ? "Demo" : `${personalTrades.length}`}
-                </Badge>
+                <Badge tone="blue">{personalTrades.length}</Badge>
                 <Button
                   type="button"
                   aria-label="Open more menu"
@@ -783,62 +753,12 @@ export function TradingDashboard({
                   <span className="max-w-[160px] truncate text-xs font-semibold text-zinc-300">
                     {userEmail}
                   </span>
-                  <Badge tone={demoTradesEnabled ? "gold" : "blue"}>
-                    {demoTradesEnabled ? "Demo" : `${personalTrades.length} trades`}
-                  </Badge>
+                  <Badge tone="blue">{personalTrades.length} trades</Badge>
                 </div>
 
-                <div className="flex items-center gap-1 rounded-2xl border border-white/10 bg-black/30 p-1.5">
-                  <Button
-                    type="button"
-                    disabled={isPending}
-                    onClick={() => handleDemoToggle(false)}
-                    className={cn(
-                      "h-8 px-3 text-xs font-black",
-                      !demoTradesEnabled
-                        ? "bg-cyan-300 text-slate-950 hover:bg-cyan-200"
-                        : "bg-transparent text-zinc-400 hover:bg-white/10 hover:text-white",
-                    )}
-                  >
-                    Demo off
-                  </Button>
-                  <Button
-                    type="button"
-                    disabled={isPending}
-                    onClick={() => handleDemoToggle(true)}
-                    className={cn(
-                      "h-8 px-3 text-xs font-black",
-                      demoTradesEnabled
-                        ? "bg-amber-300 text-slate-950 hover:bg-amber-200"
-                        : "bg-transparent text-zinc-400 hover:bg-white/10 hover:text-white",
-                    )}
-                  >
-                    Demo on
-                  </Button>
-                </div>
-
-                {canUsePersonalJournal ? (
-                  <Button
-                    type="button"
-                    disabled={isPending || demoTradesEnabled}
-                    onClick={() => {
-                      setSeedMessage(null);
-                      startTransition(async () => {
-                        const result = await seedSampleTrades();
-                        setSeedMessage(result.message);
-                        if (result.ok) {
-                          router.refresh();
-                        }
-                      });
-                    }}
-                    className="hidden bg-white/5 text-xs text-zinc-100 sm:inline-flex"
-                  >
-                    Import demo
-                  </Button>
-                ) : null}
                 <Button
                   type="button"
-                  disabled={!canUsePersonalJournal || demoTradesEnabled || !personalTrades.length}
+                  disabled={!canUsePersonalJournal || !personalTrades.length}
                   onClick={() => {
                     startTransition(async () => {
                       const csv = await buildTradesCsv();
@@ -909,9 +829,6 @@ export function TradingDashboard({
               </div>
             </div>
 
-            {seedMessage ? (
-              <p className="mt-3 text-sm text-amber-200 lg:mt-4">{seedMessage}</p>
-            ) : null}
           </header>
 
           <div className="mobile-content-pad flex-1 space-y-6 px-4 py-5 sm:px-6 sm:py-8 lg:space-y-12 lg:px-10 lg:py-12">
@@ -921,7 +838,6 @@ export function TradingDashboard({
                 calendarLabel={calendarLabel}
                 chartsReady={chartsReady}
                 dailyProfit={dailyProfit}
-                demoTradesEnabled={demoTradesEnabled}
                 maxDailyAbs={maxDailyAbs}
                 setActiveView={setActiveView}
                 stats={stats}
@@ -930,17 +846,13 @@ export function TradingDashboard({
             )}
 
             {activeView === "Strategy Settings" && (
-              <StrategySettingsPanel
-                canUsePersonalJournal={canUsePersonalJournal}
-                demoTradesEnabled={demoTradesEnabled}
-              />
+              <StrategySettingsPanel canUsePersonalJournal={canUsePersonalJournal} />
             )}
 
             {activeView === "Journal" && (
               <JournalView
                 canUsePersonalJournal={canUsePersonalJournal}
                 chartsReady={chartsReady}
-                demoTradesEnabled={demoTradesEnabled}
                 filteredTrades={filteredTrades}
                 journalEditorMode={journalEditorMode}
                 journalSection={journalSection}
@@ -1011,7 +923,6 @@ export function TradingDashboard({
                 calendarMonth={calendarMonth}
                 calendarOffset={calendarOffset}
                 canUsePersonalJournal={canUsePersonalJournal}
-                demoTradesEnabled={demoTradesEnabled}
                 overviewsByDate={overviewsByDate}
                 portfolioSnapshotDates={portfolioSnapshotDates}
                 selectedCalendarDate={selectedCalendarDate}
@@ -1045,7 +956,6 @@ function DashboardView({
   calendarLabel,
   chartsReady,
   dailyProfit,
-  demoTradesEnabled,
   maxDailyAbs,
   setActiveView,
   stats,
@@ -1055,7 +965,6 @@ function DashboardView({
   calendarLabel: string;
   chartsReady: boolean;
   dailyProfit: ReturnType<typeof buildDailyProfit>;
-  demoTradesEnabled: boolean;
   maxDailyAbs: number;
   setActiveView: (view: MainView) => void;
   stats: ReturnType<typeof getTradeStats>;
@@ -1280,10 +1189,11 @@ function DashboardView({
                       Best trade: {bestWin.pair} on {format(parseISO(bestWin.date), "MMM d")} for{" "}
                       {formatMoney(bestWin.profitAmount)}. Keep farming the clean A+ setups.
                     </>
-                  ) : demoTradesEnabled ? (
-                    <>Turn demo trades off to view your personal journal, or import the demo pack.</>
                   ) : (
-                    <>No personal trades yet. Import the demo pack or log your first entry.</>
+                    <>
+                      You have 0 trades so far — that&apos;s fine. Head to Journal to log your first
+                      entry and start building your record.
+                    </>
                   )}
                 </p>
               </div>
@@ -1292,7 +1202,7 @@ function DashboardView({
                 className="min-h-11 w-full bg-white text-slate-950 hover:bg-cyan-100 sm:w-auto"
               >
                 <ListFilter className="h-4 w-4" />
-                Open journal
+                {bestWin ? "Open journal" : "Go to Journal"}
               </Button>
             </CardContent>
           </Card>
@@ -1305,7 +1215,6 @@ function DashboardView({
 function JournalView({
   canUsePersonalJournal,
   chartsReady,
-  demoTradesEnabled,
   filteredTrades,
   journalEditorMode,
   journalSection,
@@ -1335,7 +1244,6 @@ function JournalView({
 }: {
   canUsePersonalJournal: boolean;
   chartsReady: boolean;
-  demoTradesEnabled: boolean;
   filteredTrades: Trade[];
   journalEditorMode: "closed" | "create" | "edit";
   journalSection: JournalSection;
@@ -1426,7 +1334,6 @@ function JournalView({
         <DailyOverviewPanel
           canUsePersonalJournal={canUsePersonalJournal}
           dailyOverviews={personalDailyOverviews}
-          demoTradesEnabled={demoTradesEnabled}
           initialDate={selectedCalendarDate}
           personalTrades={personalTrades}
           onDateChange={setSelectedCalendarDate}
@@ -1472,13 +1379,13 @@ function JournalView({
               <div className="flex flex-wrap gap-2">
                 <Button
                   type="button"
-                  disabled={!canUsePersonalJournal || demoTradesEnabled}
+                  disabled={!canUsePersonalJournal}
                   onClick={() => setJournalEditorMode("create")}
                   className="min-h-11 flex-1 bg-cyan-300 text-slate-950 hover:bg-cyan-200 disabled:opacity-40 sm:flex-none"
                 >
                   Create journal
                 </Button>
-                {selectedTrade && canUsePersonalJournal && !demoTradesEnabled ? (
+                {selectedTrade && canUsePersonalJournal ? (
                   <Button
                     type="button"
                     onClick={() => setJournalEditorMode("edit")}
@@ -1490,7 +1397,6 @@ function JournalView({
                 {pdfSelectedTrades.length > 0 ? (
                   <JournalPdfExportButton
                     trades={pdfSelectedTrades}
-                    disabled={demoTradesEnabled}
                     onError={setPdfExportMessage}
                   />
                 ) : null}
@@ -1566,75 +1472,101 @@ function JournalView({
         <CardContent className="min-h-0 flex-1 overflow-y-auto px-3 pb-4 lg:px-6 lg:pb-6">
           {journalTab === "List overview" && (
             <div className="overflow-hidden rounded-3xl border border-white/10">
-              <div className="grid grid-cols-[auto_1.2fr_0.8fr_0.9fr_0.8fr_0.9fr] bg-white/[0.06] px-4 py-3 text-xs font-bold uppercase tracking-[0.18em] text-zinc-500 max-lg:hidden">
-                <span className="sr-only">Export</span>
-                <span>Pair</span>
-                <span>Outcome</span>
-                <span>Date</span>
-                <span>Profit %</span>
-                <span>Strategy</span>
-              </div>
-              <div className="divide-y divide-white/10">
-                {filteredTrades.map((trade) => {
-                  const isPdfSelected = pdfSelectedIds.has(trade.id);
-                  const pdfSelectionDisabled =
-                    !isPdfSelected && pdfSelectedIds.size >= MAX_PDF_EXPORT_TRADES;
-
-                  return (
-                  <div
-                    key={trade.id}
-                    className={cn(
-                      "grid w-full gap-3 px-3 py-3.5 transition hover:bg-cyan-300/10 lg:grid-cols-[auto_1.2fr_0.8fr_0.9fr_0.8fr_0.9fr] lg:items-center lg:px-4 lg:py-4",
-                      selectedTrade?.id === trade.id && "bg-cyan-300/10",
-                    )}
-                  >
-                    <label className="flex min-h-11 min-w-11 items-center justify-center lg:min-h-0 lg:min-w-0">
-                      <input
-                        type="checkbox"
-                        checked={isPdfSelected}
-                        disabled={pdfSelectionDisabled}
-                        onChange={() => togglePdfSelection(trade.id)}
-                        className="h-5 w-5 rounded border-white/20 bg-zinc-950 text-cyan-300 focus:ring-cyan-300/40 lg:h-4 lg:w-4"
-                        aria-label={`Select ${trade.pair} for PDF export`}
-                      />
-                    </label>
-                    <button
+              {filteredTrades.length === 0 ? (
+                <div className="space-y-3 px-5 py-10 text-center">
+                  <p className="text-2xl font-black text-white">0 trades</p>
+                  <p className="mx-auto max-w-sm text-sm leading-relaxed text-zinc-400">
+                    {trades.length === 0
+                      ? "Nothing logged yet. Tap Create journal above to record your first trade — pair, outcome, and a short note is enough to start."
+                      : "No trades match your current filters. Clear search or filters to see your list again."}
+                  </p>
+                  {trades.length === 0 && canUsePersonalJournal ? (
+                    <Button
                       type="button"
-                      onClick={() => onSelectTrade(trade)}
-                      className="grid w-full gap-2 text-left touch-manipulation lg:col-span-5 lg:grid-cols-[1.2fr_0.8fr_0.9fr_0.8fr_0.9fr] lg:items-center lg:gap-3"
+                      onClick={() => setJournalEditorMode("create")}
+                      className="mt-1 bg-cyan-300 text-slate-950 hover:bg-cyan-200"
                     >
-                    {/* Mobile card row */}
-                    <div className="flex items-start justify-between gap-3 lg:contents">
-                      <div className="min-w-0">
-                        <div className="font-black text-white">{trade.pair}</div>
-                        <div className="text-xs font-semibold text-zinc-500">{trade.position}</div>
-                        <div className="mt-1 text-xs text-zinc-400 lg:hidden">
-                          {format(parseISO(trade.date), "MMM d, yyyy")} · {trade.strategy}
-                        </div>
-                      </div>
-                      <div className="flex shrink-0 flex-col items-end gap-1.5 lg:contents">
-                        <Badge tone={trade.outcome === "WIN" ? "win" : "loss"}>{trade.outcome}</Badge>
-                        <span className="hidden text-sm text-zinc-300 lg:inline">
-                          {format(parseISO(trade.date), "MMM d, yyyy")}
-                        </span>
-                        <span
+                      Create your first entry
+                    </Button>
+                  ) : null}
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-[auto_1.2fr_0.8fr_0.9fr_0.8fr_0.9fr] bg-white/[0.06] px-4 py-3 text-xs font-bold uppercase tracking-[0.18em] text-zinc-500 max-lg:hidden">
+                    <span className="sr-only">Export</span>
+                    <span>Pair</span>
+                    <span>Outcome</span>
+                    <span>Date</span>
+                    <span>Profit %</span>
+                    <span>Strategy</span>
+                  </div>
+                  <div className="divide-y divide-white/10">
+                    {filteredTrades.map((trade) => {
+                      const isPdfSelected = pdfSelectedIds.has(trade.id);
+                      const pdfSelectionDisabled =
+                        !isPdfSelected && pdfSelectedIds.size >= MAX_PDF_EXPORT_TRADES;
+
+                      return (
+                        <div
+                          key={trade.id}
                           className={cn(
-                            "text-sm font-black",
-                            trade.profitPercent >= 0 ? "text-emerald-300" : "text-rose-300",
+                            "grid w-full gap-3 px-3 py-3.5 transition hover:bg-cyan-300/10 lg:grid-cols-[auto_1.2fr_0.8fr_0.9fr_0.8fr_0.9fr] lg:items-center lg:px-4 lg:py-4",
+                            selectedTrade?.id === trade.id && "bg-cyan-300/10",
                           )}
                         >
-                          {formatPercent(trade.profitPercent)}
-                        </span>
-                        <span className="hidden text-sm font-semibold text-cyan-100 lg:inline">
-                          {trade.strategy}
-                        </span>
-                      </div>
-                    </div>
-                    </button>
+                          <label className="flex min-h-11 min-w-11 items-center justify-center lg:min-h-0 lg:min-w-0">
+                            <input
+                              type="checkbox"
+                              checked={isPdfSelected}
+                              disabled={pdfSelectionDisabled}
+                              onChange={() => togglePdfSelection(trade.id)}
+                              className="h-5 w-5 rounded border-white/20 bg-zinc-950 text-cyan-300 focus:ring-cyan-300/40 lg:h-4 lg:w-4"
+                              aria-label={`Select ${trade.pair} for PDF export`}
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => onSelectTrade(trade)}
+                            className="grid w-full gap-2 text-left touch-manipulation lg:col-span-5 lg:grid-cols-[1.2fr_0.8fr_0.9fr_0.8fr_0.9fr] lg:items-center lg:gap-3"
+                          >
+                            {/* Mobile card row */}
+                            <div className="flex items-start justify-between gap-3 lg:contents">
+                              <div className="min-w-0">
+                                <div className="font-black text-white">{trade.pair}</div>
+                                <div className="text-xs font-semibold text-zinc-500">
+                                  {trade.position}
+                                </div>
+                                <div className="mt-1 text-xs text-zinc-400 lg:hidden">
+                                  {format(parseISO(trade.date), "MMM d, yyyy")} · {trade.strategy}
+                                </div>
+                              </div>
+                              <div className="flex shrink-0 flex-col items-end gap-1.5 lg:contents">
+                                <Badge tone={trade.outcome === "WIN" ? "win" : "loss"}>
+                                  {trade.outcome}
+                                </Badge>
+                                <span className="hidden text-sm text-zinc-300 lg:inline">
+                                  {format(parseISO(trade.date), "MMM d, yyyy")}
+                                </span>
+                                <span
+                                  className={cn(
+                                    "text-sm font-black",
+                                    trade.profitPercent >= 0 ? "text-emerald-300" : "text-rose-300",
+                                  )}
+                                >
+                                  {formatPercent(trade.profitPercent)}
+                                </span>
+                                <span className="hidden text-sm font-semibold text-cyan-100 lg:inline">
+                                  {trade.strategy}
+                                </span>
+                              </div>
+                            </div>
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
-                  );
-                })}
-              </div>
+                </>
+              )}
             </div>
           )}
 
@@ -1678,18 +1610,38 @@ function JournalView({
 
       <div className="min-h-0 overflow-y-auto lg:max-h-full lg:pr-1">
       {journalEditorMode === "closed" ? (
-        <TradeDetail
-          chartsReady={chartsReady}
-          canEdit={canUsePersonalJournal && !demoTradesEnabled}
-          trade={selectedTrade}
-          onEdit={() => setJournalEditorMode("edit")}
-        />
+        selectedTrade ? (
+          <TradeDetail
+            chartsReady={chartsReady}
+            canEdit={canUsePersonalJournal}
+            trade={selectedTrade}
+            onEdit={() => setJournalEditorMode("edit")}
+          />
+        ) : (
+          <Card className="overflow-hidden border-cyan-300/20">
+            <CardContent className="flex h-full min-h-[220px] flex-col justify-center gap-3 p-6 text-center">
+              <p className="text-2xl font-black text-white">0 trades</p>
+              <p className="text-sm leading-relaxed text-zinc-400">
+                Your journal is empty for now. Use Create journal to log a trade — ticker, win/loss,
+                and a quick note go a long way.
+              </p>
+              {canUsePersonalJournal ? (
+                <Button
+                  type="button"
+                  onClick={() => setJournalEditorMode("create")}
+                  className="mx-auto mt-1 bg-cyan-300 text-slate-950 hover:bg-cyan-200"
+                >
+                  Create journal
+                </Button>
+              ) : null}
+            </CardContent>
+          </Card>
+        )
       ) : (
         <JournalEntryForm
           mode={journalEditorMode}
           trade={journalEditorMode === "edit" ? selectedTrade : null}
           canUsePersonalJournal={canUsePersonalJournal}
-          demoTradesEnabled={demoTradesEnabled}
           onCancel={() => setJournalEditorMode("closed")}
           onDeleted={onJournalDeleted}
           onSaved={onJournalSaved}
@@ -1943,7 +1895,6 @@ function CalendarView({
   calendarMonth,
   calendarOffset,
   canUsePersonalJournal,
-  demoTradesEnabled,
   overviewsByDate,
   portfolioSnapshotDates,
   selectedCalendarDate,
@@ -1962,7 +1913,6 @@ function CalendarView({
   calendarMonth: Date;
   calendarOffset: number;
   canUsePersonalJournal: boolean;
-  demoTradesEnabled: boolean;
   overviewsByDate: Record<string, DailyOverview>;
   portfolioSnapshotDates: string[];
   selectedCalendarDate: string;
@@ -2195,15 +2145,15 @@ function CalendarView({
               </Badge>
             </div>
             <p className="text-sm text-zinc-400">
-              {canUsePersonalJournal && !demoTradesEnabled
+              {canUsePersonalJournal
                 ? portfolioSnapshotDates.includes(selectedCalendarDate)
                   ? "Review long/short book and target ratio for this day."
                   : "No snapshot yet — open the editor to log positions and regime target."
-                : "Turn demo trades off to save daily portfolio snapshots."}
+                : "Sign in with a Supabase account to save daily portfolio snapshots."}
             </p>
             <Button
               type="button"
-              disabled={!canUsePersonalJournal || demoTradesEnabled}
+              disabled={!canUsePersonalJournal}
               onClick={onOpenPortfolioSnapshot}
               className="bg-amber-400/20 text-amber-100 hover:bg-amber-400/30 disabled:opacity-40"
             >
@@ -2268,15 +2218,15 @@ function CalendarView({
               </div>
             ) : (
               <p className="text-sm text-zinc-400">
-                {canUsePersonalJournal && !demoTradesEnabled
+                {canUsePersonalJournal
                   ? "No overview for this day yet. Open the editor to capture your plan and recap."
-                  : "Turn demo trades off to write daily overviews."}
+                  : "Sign in with a Supabase account to write daily overviews."}
               </p>
             )}
 
             <Button
               type="button"
-              disabled={!canUsePersonalJournal || demoTradesEnabled}
+              disabled={!canUsePersonalJournal}
               onClick={onOpenDailyOverview}
               className="bg-violet-400/20 text-violet-100 hover:bg-violet-400/30 disabled:opacity-40"
             >

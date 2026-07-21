@@ -1,12 +1,8 @@
 "use server";
 
-import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-import { trades } from "@/db/schema";
 import { getSessionUser, isAdminDemoUser } from "@/lib/auth";
-import { getDb } from "@/lib/db";
-import { buildSampleTradeRows } from "@/lib/seed-trades";
 import { tradeRecordToTrade } from "@/lib/trade-db";
 import {
   createPersonalTrade,
@@ -72,37 +68,6 @@ export async function deleteTrade(id: string) {
 
   await deletePersonalTrade(user.id, id);
   revalidatePath("/");
-}
-
-export async function seedSampleTrades(): Promise<{ ok: boolean; message: string }> {
-  const user = await getSessionUser();
-  if (!user) {
-    return { ok: false, message: "You must be signed in." };
-  }
-  if (isAdminDemoUser(user)) {
-    return {
-      ok: false,
-      message:
-        "Admin demo cannot save trades. Sign out and sign in with a Supabase account, then try again.",
-    };
-  }
-
-  const db = getDb();
-  const [{ count }] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(trades)
-    .where(eq(trades.userId, user.id));
-
-  if (count > 0) {
-    return {
-      ok: false,
-      message: "Sample data is only imported when you have zero personal trades.",
-    };
-  }
-
-  await db.insert(trades).values(buildSampleTradeRows(user.id));
-  revalidatePath("/");
-  return { ok: true, message: "Imported the March 2026 demo pack into your personal journal." };
 }
 
 export async function buildTradesCsv(): Promise<string> {

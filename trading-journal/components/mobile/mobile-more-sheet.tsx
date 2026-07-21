@@ -30,11 +30,8 @@ type MobileMoreSheetProps = {
   moreViews: MoreView[];
   toolLinks: ToolLink[];
   userEmail: string;
-  demoTradesEnabled: boolean;
   tradeCount: number;
   onNavigate: (view: string) => void;
-  onDemoToggle: (enabled: boolean) => void;
-  demoPending?: boolean;
 };
 
 export function MobileMoreSheet({
@@ -44,11 +41,8 @@ export function MobileMoreSheet({
   moreViews,
   toolLinks,
   userEmail,
-  demoTradesEnabled,
   tradeCount,
   onNavigate,
-  onDemoToggle,
-  demoPending = false,
 }: MobileMoreSheetProps) {
   if (!open) {
     return null;
@@ -90,8 +84,8 @@ export function MobileMoreSheet({
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
             <p className="truncate text-sm font-semibold text-zinc-200">{userEmail}</p>
             <div className="mt-2">
-              <Badge tone={demoTradesEnabled ? "gold" : "blue"}>
-                {demoTradesEnabled ? "Demo" : `${tradeCount} trades`}
+              <Badge tone="blue">
+                {tradeCount === 0 ? "0 trades" : `${tradeCount} trades`}
               </Badge>
             </div>
           </div>
@@ -167,34 +161,6 @@ export function MobileMoreSheet({
             <p className="px-1 text-[10px] font-black uppercase tracking-[0.24em] text-zinc-600">
               Account
             </p>
-            <div className="flex items-center gap-1 rounded-2xl border border-white/10 bg-black/30 p-1.5">
-              <Button
-                type="button"
-                disabled={demoPending}
-                onClick={() => onDemoToggle(false)}
-                className={cn(
-                  "min-h-11 flex-1 px-3 text-xs font-black",
-                  !demoTradesEnabled
-                    ? "bg-cyan-300 text-slate-950 hover:bg-cyan-200"
-                    : "bg-transparent text-zinc-400 hover:bg-white/10 hover:text-white",
-                )}
-              >
-                Demo off
-              </Button>
-              <Button
-                type="button"
-                disabled={demoPending}
-                onClick={() => onDemoToggle(true)}
-                className={cn(
-                  "min-h-11 flex-1 px-3 text-xs font-black",
-                  demoTradesEnabled
-                    ? "bg-amber-300 text-slate-950 hover:bg-amber-200"
-                    : "bg-transparent text-zinc-400 hover:bg-white/10 hover:text-white",
-                )}
-              >
-                Demo on
-              </Button>
-            </div>
             <form action={signOut}>
               <Button
                 type="submit"
