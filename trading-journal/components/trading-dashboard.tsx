@@ -503,15 +503,16 @@ export function TradingDashboard({
   const ActiveViewIcon = mainViewConfig[activeView].icon;
 
   return (
-    <main className="min-h-screen bg-[#05070d] text-white">
+    <main id="main-content" className="min-h-dvh bg-background text-white">
       <ConfettiBurst active={confetti} />
-      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.18),transparent_34%),radial-gradient(circle_at_80%_0%,rgba(250,204,21,0.12),transparent_28%),linear-gradient(180deg,rgba(15,23,42,0.72),rgba(3,7,18,0.95))]" />
+      <div className="app-shell-bg pointer-events-none fixed inset-0" />
+      <div className="app-grain" aria-hidden />
 
-      <div className="relative flex min-h-screen">
+      <div className="relative flex min-h-dvh">
         {/* Desktop sidebar */}
         <aside
           className={cn(
-            "sticky top-0 hidden h-screen shrink-0 flex-col border-r border-white/10 bg-black/20 backdrop-blur-xl transition-[width] duration-300 ease-out lg:flex",
+            "sticky top-0 hidden h-dvh shrink-0 flex-col border-r border-white/10 bg-black/25 backdrop-blur-xl transition-[width] duration-300 ease-out lg:flex",
             sidebarCollapsed ? "w-[4.75rem]" : "w-72 xl:w-80",
           )}
         >
@@ -521,19 +522,21 @@ export function TradingDashboard({
               sidebarCollapsed ? "flex flex-col items-center px-3 py-6" : "px-7 py-8",
             )}
           >
-            <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.32em] text-cyan-200/80">
+            <div className="flex items-center gap-2 text-[11px] font-semibold tracking-[0.18em] text-cyan-200/75">
               <Sparkles className="h-3.5 w-3.5 shrink-0" />
-              {!sidebarCollapsed ? "Trade Road" : null}
+              {!sidebarCollapsed ? <span className="uppercase">Trade Road</span> : null}
             </div>
             {!sidebarCollapsed ? (
               <>
-                <h1 className="mt-3 text-2xl font-black tracking-tight text-white">Trading Journal</h1>
-                <p className="mt-2 text-sm leading-relaxed text-zinc-500">
-                  Clean entries, protected streaks, scoreable feedback.
+                <h1 className="mt-3 text-2xl font-bold tracking-tight text-white text-balance">
+                  Trading journal
+                </h1>
+                <p className="mt-2 max-w-[22ch] text-sm leading-relaxed text-zinc-500">
+                  Log trades, review edges, track the month.
                 </p>
               </>
             ) : (
-              <span className="sr-only">Trading Journal</span>
+              <span className="sr-only">Trading journal</span>
             )}
           </div>
 
@@ -560,12 +563,12 @@ export function TradingDashboard({
                     title={sidebarCollapsed ? view : undefined}
                     onClick={() => navigateToView(view)}
                     className={cn(
-                      "flex w-full items-center rounded-2xl text-left text-sm font-semibold transition-all duration-200",
+                      "flex w-full items-center rounded-xl text-left text-sm font-semibold transition-[transform,background-color,color,box-shadow] duration-200 active:scale-[0.99]",
                       sidebarCollapsed
                         ? "justify-center px-0 py-3.5"
                         : "gap-3 px-4 py-3.5",
                       isActive
-                        ? "bg-cyan-300 text-slate-950 shadow-[0_0_24px_rgba(34,211,238,0.28)]"
+                        ? "bg-cyan-300 text-slate-950 shadow-[0_10px_28px_-12px_rgba(34,211,238,0.55)]"
                         : "text-zinc-400 hover:bg-white/[0.06] hover:text-white",
                     )}
                   >
@@ -692,17 +695,17 @@ export function TradingDashboard({
         {/* Main content */}
         <div className="flex min-w-0 flex-1 flex-col">
           <header
-            className="sticky top-0 z-30 border-b border-white/10 bg-[#05070d]/80 px-4 py-3 backdrop-blur-xl sm:px-6 lg:px-10 lg:py-7"
+            className="sticky top-0 z-30 border-b border-white/10 bg-[#070a12]/82 px-4 py-3 backdrop-blur-xl sm:px-6 lg:px-10 lg:py-6"
             style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}
           >
             {/* Mobile compact header */}
             <div className="flex items-center justify-between gap-3 lg:hidden">
               <div className="min-w-0">
-                <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.24em] text-cyan-200/70">
+                <div className="flex items-center gap-2 text-[11px] font-semibold tracking-wide text-cyan-200/70">
                   <ActiveViewIcon className="h-3.5 w-3.5 shrink-0" />
                   <span className="truncate">Trade Road</span>
                 </div>
-                <h2 className="mt-1 truncate text-xl font-black tracking-tight text-white">
+                <h2 className="mt-1 truncate text-xl font-bold tracking-tight text-white">
                   {activeView}
                 </h2>
               </div>
@@ -735,14 +738,14 @@ export function TradingDashboard({
                   )}
                 </button>
                 <div>
-                  <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.24em] text-cyan-200/70">
+                  <div className="flex items-center gap-2 text-[11px] font-semibold tracking-wide text-cyan-200/70">
                     <ActiveViewIcon className="h-3.5 w-3.5" />
-                    {activeView}
+                    Trade Road
                   </div>
-                  <h2 className="mt-2 text-2xl font-black tracking-tight text-white sm:text-3xl">
+                  <h2 className="mt-2 text-2xl font-bold tracking-tight text-white text-balance sm:text-3xl">
                     {activeView}
                   </h2>
-                  <p className="mt-1.5 max-w-xl text-sm leading-relaxed text-zinc-500">
+                  <p className="mt-1.5 max-w-[52ch] text-sm leading-relaxed text-zinc-500">
                     {mainViewConfig[activeView].description}
                   </p>
                 </div>
@@ -972,72 +975,68 @@ function DashboardView({
 }) {
   const metricCards = [
     {
-      title: "Total Profit",
+      title: "Total profit",
       value: `$${moneyFormatter.format(stats.totalProfit)}`,
-      helper: `${calendarLabel} bankroll boost`,
+      helper: calendarLabel,
       icon: ArrowUpRight,
-      tone: "from-emerald-400/20 to-cyan-400/10",
+      tone: stats.totalProfit >= 0 ? "border-emerald-400/15 bg-emerald-400/[0.06]" : "border-rose-400/15 bg-rose-400/[0.06]",
     },
     {
-      title: "Win Rate",
+      title: "Win rate",
       value: `${stats.winRate}%`,
-      helper: `${stats.wins} wins / ${stats.losses} losses`,
+      helper: `${stats.wins}W · ${stats.losses}L`,
       icon: Target,
-      tone: "from-cyan-400/20 to-blue-500/10",
+      tone: "border-cyan-400/15 bg-cyan-400/[0.05]",
     },
     {
-      title: "Total Trades",
+      title: "Total trades",
       value: `${stats.totalTrades}`,
-      helper: "Quest entries logged",
+      helper: stats.totalTrades === 0 ? "Nothing logged yet" : "In journal",
       icon: WalletCards,
-      tone: "from-violet-400/20 to-fuchsia-500/10",
+      tone: "border-white/10 bg-white/[0.03]",
     },
     {
-      title: "Win/Loss streak",
+      title: "Streak",
       value: stats.currentStreak,
-      helper: "Current momentum chain",
+      helper: "Current run",
       icon: Flame,
-      tone: "from-amber-300/20 to-rose-500/10",
+      tone: "border-white/10 bg-white/[0.03]",
     },
   ];
 
   return (
-    <section className="space-y-6 lg:space-y-12">
+    <section className="space-y-6 lg:space-y-10">
       {/* KPI strip */}
-      <div className="space-y-3 lg:space-y-5">
+      <div className="space-y-3 lg:space-y-4">
         <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-zinc-600">
-            Overview
-          </p>
-          <h3 className="mt-1.5 text-base font-bold text-zinc-200 lg:mt-2 lg:text-lg">
-            {calendarLabel} snapshot
+          <h3 className="text-base font-semibold tracking-tight text-zinc-100 lg:text-lg">
+            {calendarLabel}
           </h3>
+          <p className="mt-1 text-sm text-zinc-500">Month snapshot from your journal.</p>
         </div>
-        <div className="grid grid-cols-2 gap-3 lg:gap-5 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 lg:gap-4 xl:grid-cols-4">
           {metricCards.map((metric) => (
             <Card
               key={metric.title}
               className={cn(
-                "overflow-hidden bg-gradient-to-br transition duration-200 hover:border-cyan-300/30",
+                "overflow-hidden transition-[border-color,transform] duration-200 hover:border-cyan-300/25",
                 metric.tone,
               )}
             >
-              <CardContent className="relative p-4 lg:p-7">
-                <div className="absolute right-3 top-3 rounded-xl border border-white/10 bg-black/25 p-2 text-cyan-100 lg:right-5 lg:top-5 lg:rounded-2xl lg:p-3">
-                  <metric.icon className="h-4 w-4 lg:h-5 lg:w-5" />
+              <CardContent className="relative p-4 lg:p-6">
+                <div className="absolute right-3 top-3 rounded-lg border border-white/10 bg-black/30 p-2 text-cyan-100/90 lg:right-4 lg:top-4">
+                  <metric.icon className="h-4 w-4" strokeWidth={1.75} />
                 </div>
-                <div className="pr-10 text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500 lg:text-xs lg:tracking-[0.2em]">
-                  {metric.title}
-                </div>
-                <div className="mt-3 flex items-end gap-1.5 lg:mt-6 lg:gap-2">
-                  <span className="text-2xl font-black tracking-tight lg:text-4xl">
+                <div className="pr-10 text-xs font-medium text-zinc-500">{metric.title}</div>
+                <div className="mt-3 flex items-end gap-1.5 lg:mt-5">
+                  <span
+                    data-metric
+                    className="text-2xl font-bold tracking-tight tabular-nums text-white lg:text-3xl"
+                  >
                     {metric.value}
                   </span>
-                  {metric.title === "Total Profit" && (
-                    <span className="pb-1 text-emerald-300 lg:pb-1.5">▲</span>
-                  )}
                 </div>
-                <p className="mt-2 text-xs leading-relaxed text-zinc-500 lg:mt-3 lg:text-sm">
+                <p className="mt-2 text-xs leading-relaxed text-zinc-500 lg:text-sm">
                   {metric.helper}
                 </p>
               </CardContent>
@@ -1047,22 +1046,20 @@ function DashboardView({
       </div>
 
       {/* Primary chart — daily P&L */}
-      <div className="space-y-3 lg:space-y-5">
+      <div className="space-y-3 lg:space-y-4">
         <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-zinc-600">
-            Daily performance
-          </p>
-          <h3 className="mt-1.5 text-base font-bold text-zinc-200 lg:mt-2 lg:text-lg">
+          <h3 className="text-base font-semibold tracking-tight text-zinc-100 lg:text-lg">
             Profit per day
           </h3>
+          <p className="mt-1 text-sm text-zinc-500">Daily P&amp;L for {calendarLabel}.</p>
         </div>
         <Card className="overflow-hidden">
-          <CardHeader className="px-4 pt-4 lg:px-7 lg:pt-7">
+          <CardHeader className="px-4 pt-4 lg:px-6 lg:pt-6">
             <div className="flex items-center justify-between gap-3">
               <p className="text-xs leading-relaxed text-zinc-500 lg:text-sm">
-                Daily profit for {calendarLabel}.
+                Bars above zero are green; below are red.
               </p>
-              <Badge tone="gold">{dailyProfit.length} days</Badge>
+              <Badge tone="blue">{dailyProfit.length} days</Badge>
             </div>
           </CardHeader>
           <CardContent className="px-3 pb-5 lg:px-7 lg:pb-8">
@@ -1169,30 +1166,35 @@ function DashboardView({
                       <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: strategy.fill }} />
                       <span className="truncate font-semibold">{strategy.name}</span>
                     </div>
-                    <span className="shrink-0 font-black text-white">${strategy.profit}</span>
+                    <span className="shrink-0 font-semibold tabular-nums text-white">
+                      ${strategy.profit}
+                    </span>
                   </div>
                 ))}
               </div>
             </CardContent>
           </Card>
 
-          <Card className="overflow-hidden border-emerald-300/20 bg-gradient-to-br from-emerald-400/10 via-cyan-400/[0.06] to-transparent">
+          <Card className="overflow-hidden border-cyan-300/15 bg-gradient-to-br from-cyan-400/[0.08] via-transparent to-transparent">
             <CardContent className="flex h-full flex-col justify-between gap-6 p-5 lg:gap-8 lg:p-8">
               <div>
-                <Badge tone="win">Monthly summary</Badge>
-                <h2 className="mt-4 text-3xl font-black tracking-tight lg:mt-6 lg:text-4xl">
+                <Badge tone="blue">Month total</Badge>
+                <h2
+                  data-metric
+                  className="mt-4 text-3xl font-bold tracking-tight tabular-nums lg:mt-6 lg:text-4xl"
+                >
                   ${moneyFormatter.format(stats.totalProfit)}
                 </h2>
-                <p className="mt-3 max-w-md text-sm leading-relaxed text-zinc-400 lg:mt-4">
+                <p className="mt-3 max-w-[42ch] text-sm leading-relaxed text-zinc-400 lg:mt-4">
                   {bestWin ? (
                     <>
                       Best trade: {bestWin.pair} on {format(parseISO(bestWin.date), "MMM d")} for{" "}
-                      {formatMoney(bestWin.profitAmount)}. Keep farming the clean A+ setups.
+                      {formatMoney(bestWin.profitAmount)}.
                     </>
                   ) : (
                     <>
-                      You have 0 trades so far — that&apos;s fine. Head to Journal to log your first
-                      entry and start building your record.
+                      You have 0 trades so far. That is fine. Open Journal and log your first entry
+                      when you are ready.
                     </>
                   )}
                 </p>

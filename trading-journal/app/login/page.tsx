@@ -142,14 +142,19 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#05070d] px-4 py-12 text-white">
-      <Card className="w-full max-w-md border-white/10 bg-white/[0.04]">
+    <main className="relative flex min-h-dvh items-center justify-center px-4 py-12 text-white">
+      <div className="app-shell-bg pointer-events-none fixed inset-0" />
+      <div className="app-grain" aria-hidden />
+      <Card className="relative w-full max-w-md border-white/10">
         <CardHeader>
-          <CardTitle className="text-2xl font-black">TradeRoad</CardTitle>
-          <p className="text-sm text-zinc-400">
+          <p className="text-[11px] font-semibold tracking-[0.18em] text-cyan-200/75 uppercase">
+            Trade Road
+          </p>
+          <CardTitle className="mt-2 text-2xl font-bold tracking-tight">Sign in</CardTitle>
+          <p className="mt-1.5 max-w-[40ch] text-sm leading-relaxed text-zinc-400">
             {mode === "forgot-password"
               ? "Set or reset your password with a one-time email link."
-              : "Sign in to your trading journal. Email/password, magic link, or password reset."}
+              : "Email and password, magic link, or password reset."}
           </p>
         </CardHeader>
         <CardContent className="grid gap-6">
@@ -202,7 +207,7 @@ export default function LoginPage() {
               </div>
 
               <form onSubmit={onMagicLink} className="grid gap-2 border-t border-white/10 pt-4">
-                <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
+                <p className="text-xs font-semibold text-zinc-500">
                   Magic link (no password needed)
                 </p>
                 <p className="text-xs text-zinc-500">
@@ -240,9 +245,7 @@ export default function LoginPage() {
           )}
 
           <form action={signInAsAdmin} className="grid gap-2 border-t border-white/10 pt-4">
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
-              Admin demo access
-            </p>
+            <p className="text-xs font-semibold text-zinc-500">Admin demo access</p>
             <p className="text-xs text-zinc-500">
               Offline preview only. With Supabase + database configured, sign in above to save
               trades.

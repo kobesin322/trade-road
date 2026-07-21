@@ -11,7 +11,7 @@ export function Input({
     <input
       type={type}
       className={cn(
-        "flex h-11 w-full rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-2 text-sm text-white shadow-inner outline-none transition placeholder:text-zinc-500 focus:border-cyan-300/60 focus:ring-2 focus:ring-cyan-300/20",
+        "flex h-11 w-full rounded-xl border border-white/10 bg-white/[0.05] px-4 py-2 text-sm text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] outline-none transition-[border-color,box-shadow,background-color] duration-200 placeholder:text-zinc-500 focus:border-cyan-300/50 focus:bg-white/[0.07] focus:ring-2 focus:ring-cyan-300/20",
         className,
       )}
       {...props}

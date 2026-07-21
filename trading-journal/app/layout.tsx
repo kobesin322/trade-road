@@ -13,8 +13,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Trading Journal Dashboard",
-  description: "A gamified March 2026 trading journal dashboard.",
+  title: {
+    default: "Trade Road",
+    template: "%s · Trade Road",
+  },
+  description: "Personal trading journal for logging trades, reviews, and daily performance.",
 };
 
 /** iPhone 14–first mobile viewport; safe-area enabled for notch / home indicator. */
@@ -22,7 +25,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#05070d",
+  themeColor: "#070a12",
 };
 
 export default function RootLayout({
@@ -35,7 +38,12 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="flex min-h-dvh flex-col touch-manipulation">{children}</body>
+      <body className="flex min-h-dvh flex-col touch-manipulation font-sans">
+        <a href="#main-content" className="skip-to-content">
+          Skip to content
+        </a>
+        {children}
+      </body>
     </html>
   );
 }
