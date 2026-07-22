@@ -54,7 +54,7 @@ export function paintBarVolume(
 
   const low = Math.min(bar.low, bar.high);
   const high = Math.max(bar.low, bar.high);
-  let start = binFloor(low, tickSize);
+  const start = binFloor(low, tickSize);
   const end = binFloor(high, tickSize);
 
   if (start > end) {

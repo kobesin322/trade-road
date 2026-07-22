@@ -59,7 +59,7 @@ function ProfileDiagram() {
         [70, 60],
         [50, 40],
         [35, 25],
-      ].map(([w, y], i) => (
+      ].map(([w], i) => (
         <rect
           key={i}
           x="40"
