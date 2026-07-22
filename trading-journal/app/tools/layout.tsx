@@ -7,7 +7,7 @@ import { getSessionUser } from "@/lib/auth";
 
 const tools = [
   {
-    href: "/?view=Strategy%20Lab",
+    href: "/app?view=Strategy%20Lab",
     label: "Strategy Lab",
     helper: "CVD bounce backtester",
     icon: FlaskConical,
@@ -44,7 +44,7 @@ export default async function ToolsLayout({
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <Link
-                href="/"
+                href="/app"
                 className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-bold uppercase tracking-[0.18em] text-zinc-300 transition hover:border-cyan-300/50 hover:text-cyan-100"
               >
                 <ArrowLeft className="h-3.5 w-3.5" />

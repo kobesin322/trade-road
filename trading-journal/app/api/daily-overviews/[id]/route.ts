@@ -79,7 +79,7 @@ export async function PATCH(request: Request, context: RouteContext) {
           : existing.linkedTradeIds,
     });
 
-    revalidatePath("/");
+    revalidatePath("/app");
     return NextResponse.json({ overview });
   } catch (error) {
     if (error instanceof DailyOverviewServiceError) {
@@ -95,7 +95,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
     const user = await requireDailyOverviewUser();
     const { id } = await context.params;
     await removePersonalDailyOverview(user.id, id);
-    revalidatePath("/");
+    revalidatePath("/app");
     return NextResponse.json({ ok: true });
   } catch (error) {
     if (error instanceof DailyOverviewServiceError) {

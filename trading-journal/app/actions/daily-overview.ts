@@ -116,7 +116,7 @@ export async function saveDailyOverview(
       });
     }
 
-    revalidatePath("/");
+    revalidatePath("/app");
     return { ok: true, message: "Daily overview saved." };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to save daily overview.";
@@ -136,6 +136,6 @@ export async function removeDailyOverview(id: string): Promise<SaveDailyOverview
   }
 
   await deleteDailyOverview(user.id, id);
-  revalidatePath("/");
+  revalidatePath("/app");
   return { ok: true, message: "Daily overview deleted." };
 }

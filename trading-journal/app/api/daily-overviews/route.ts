@@ -36,7 +36,7 @@ export async function POST(request: Request) {
   try {
     const user = await requireDailyOverviewUser();
     const overview = await savePersonalDailyOverview(user.id, await request.json());
-    revalidatePath("/");
+    revalidatePath("/app");
     return NextResponse.json({ overview }, { status: 201 });
   } catch (error) {
     if (error instanceof DailyOverviewServiceError) {
@@ -55,7 +55,7 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "id is required." }, { status: 400 });
     }
     await removePersonalDailyOverview(user.id, id);
-    revalidatePath("/");
+    revalidatePath("/app");
     return NextResponse.json({ ok: true });
   } catch (error) {
     if (error instanceof DailyOverviewServiceError) {

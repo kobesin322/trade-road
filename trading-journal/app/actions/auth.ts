@@ -16,8 +16,8 @@ export async function signInAsAdmin() {
     path: "/",
     maxAge: 60 * 60 * 24 * 7,
   });
-  revalidatePath("/", "layout");
-  redirect("/");
+  revalidatePath("/app", "layout");
+  redirect("/app");
 }
 
 export async function signOut() {
@@ -28,6 +28,6 @@ export async function signOut() {
     const supabase = await createClient();
     await supabase.auth.signOut();
   }
-  revalidatePath("/", "layout");
+  revalidatePath("/app", "layout");
   redirect("/login");
 }

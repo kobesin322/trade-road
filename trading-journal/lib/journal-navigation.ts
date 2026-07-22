@@ -3,7 +3,7 @@ export function buildTradeJournalUrl(tradeId: string) {
     view: "Journal",
     tradeId,
   });
-  return `/?${params.toString()}`;
+  return `/app?${params.toString()}`;
 }
 
 export function openTradeJournalInNewTab(tradeId: string) {

@@ -38,14 +38,33 @@ function clearSupabaseAuthCookies(request: NextRequest, response: NextResponse) 
   }
 }
 
+function isPublicPath(path: string) {
+  return (
+    path === "/" ||
+    path.startsWith("/login") ||
+    path.startsWith("/auth")
+  );
+}
+
 function redirectToLogin(request: NextRequest) {
   const url = request.nextUrl.clone();
   url.pathname = "/login";
+  const next = `${request.nextUrl.pathname}${request.nextUrl.search}`;
+  if (next && next !== "/" && next !== "/login") {
+    url.searchParams.set("next", next);
+  }
   return NextResponse.redirect(url);
 }
 
-function unauthenticatedResponse(request: NextRequest, isAuthPath: boolean) {
-  if (isAuthPath) {
+function redirectToApp(request: NextRequest) {
+  const url = request.nextUrl.clone();
+  url.pathname = "/app";
+  url.search = "";
+  return NextResponse.redirect(url);
+}
+
+function unauthenticatedResponse(request: NextRequest, path: string) {
+  if (isPublicPath(path)) {
     return NextResponse.next();
   }
 
@@ -56,16 +75,13 @@ function unauthenticatedResponse(request: NextRequest, isAuthPath: boolean) {
 
 export async function updateSession(request: NextRequest) {
   const path = request.nextUrl.pathname;
-  const isAuthPath = path.startsWith("/login") || path.startsWith("/auth");
   const hasAdminSession = isAdminSessionCookie(
     request.cookies.get(ADMIN_SESSION_COOKIE)?.value,
   );
 
   if (hasAdminSession) {
     if (path === "/login") {
-      const url = request.nextUrl.clone();
-      url.pathname = "/";
-      return NextResponse.redirect(url);
+      return redirectToApp(request);
     }
     return NextResponse.next();
   }
@@ -73,11 +89,11 @@ export async function updateSession(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!supabaseUrl || !supabaseKey) {
-    return unauthenticatedResponse(request, isAuthPath);
+    return unauthenticatedResponse(request, path);
   }
 
   if (!hasSupabaseAuthCookies(request)) {
-    return unauthenticatedResponse(request, isAuthPath);
+    return unauthenticatedResponse(request, path);
   }
 
   let supabaseResponse = NextResponse.next({
@@ -112,24 +128,22 @@ export async function updateSession(request: NextRequest) {
       if (isTransientAuthError(error)) {
         return supabaseResponse;
       }
-      return unauthenticatedResponse(request, isAuthPath);
+      return unauthenticatedResponse(request, path);
     }
     user = data.user;
   } catch (error) {
     if (isTransientAuthError(error)) {
       return supabaseResponse;
     }
-    return unauthenticatedResponse(request, isAuthPath);
+    return unauthenticatedResponse(request, path);
   }
 
   if (!user) {
-    return unauthenticatedResponse(request, isAuthPath);
+    return unauthenticatedResponse(request, path);
   }
 
   if (path === "/login") {
-    const url = request.nextUrl.clone();
-    url.pathname = "/";
-    return NextResponse.redirect(url);
+    return redirectToApp(request);
   }
 
   return supabaseResponse;
