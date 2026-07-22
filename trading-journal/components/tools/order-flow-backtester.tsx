@@ -23,6 +23,8 @@ import { Input } from "@/components/ui/input";
 import { TradingViewMultiTimeframe } from "@/components/charts/trading-view-multi-timeframe";
 import { BouncyBallStrategyChart } from "@/components/charts/bouncy-ball-strategy-chart";
 import { TickerSearchPanel } from "@/components/charts/ticker-search-panel";
+import { OrderflowFaqModal } from "@/components/tools/orderflow-faq-modal";
+import { VolumeProfilePanel } from "@/components/tools/volume-profile-panel";
 import type { MarketOHLCVPayload } from "@/lib/market-data/yahoo-chart";
 import {
   CRYPTO_WATCHLIST,
@@ -50,11 +52,12 @@ const DEFAULT_TICKER_ID = CRYPTO_WATCHLIST[0].id;
 const STRATEGY_LAB_CHART_RANGE = "5d";
 const STRATEGY_LAB_CHART_INTERVAL = "1m";
 
-type ChartTab = "price" | "cvd" | "bouncyball" | "tradingview" | "equity";
+type ChartTab = "price" | "cvd" | "profile" | "bouncyball" | "tradingview" | "equity";
 
 const chartTabs: Array<{ id: ChartTab; label: string }> = [
   { id: "price", label: "Price + Delta" },
   { id: "cvd", label: "CVD" },
+  { id: "profile", label: "Volume Profile" },
   { id: "bouncyball", label: "Bouncy Ball" },
   { id: "tradingview", label: "TradingView MTF" },
   { id: "equity", label: "Equity" },
@@ -520,6 +523,7 @@ export function OrderFlowBacktester() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [showAllSignalsOnChart, setShowAllSignalsOnChart] = useState(false);
   const [selectedSignalIds, setSelectedSignalIds] = useState<string[]>([]);
+  const [faqOpen, setFaqOpen] = useState(false);
 
   const allTickers = useMemo(
     () => [...customWatchlist, ...CRYPTO_WATCHLIST, ...STOCK_WATCHLIST],
@@ -655,18 +659,27 @@ export function OrderFlowBacktester() {
 
   return (
     <section className="grid gap-6">
+      <OrderflowFaqModal open={faqOpen} onClose={() => setFaqOpen(false)} />
       <Card className="overflow-hidden border-fuchsia-300/20 bg-gradient-to-br from-fuchsia-400/10 via-cyan-400/10 to-slate-950">
         <CardHeader>
           <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
             <div>
               <Badge tone="gold">Strategy lab</Badge>
-              <CardTitle className="mt-4 text-3xl font-black sm:text-4xl">
+              <CardTitle className="mt-4 text-3xl font-bold sm:text-4xl">
                 Bounce Momentum Exhaustion Backtester
               </CardTitle>
               <p className="mt-2 max-w-3xl text-sm text-zinc-400 sm:text-base">
-                Pick a ticker, load Yahoo Finance OHLCV, approximate bar delta and CVD, detect
-                support/resistance bounces with delta confirmation, then simulate SL/TP trades.
+                Pick a ticker, load Yahoo Finance OHLCV, approximate bar delta and CVD, build volume
+                profiles (POC / VA / HVN / LVN / IB), detect support/resistance bounces, then simulate
+                SL/TP trades.
               </p>
+              <Button
+                type="button"
+                onClick={() => setFaqOpen(true)}
+                className="mt-3 bg-white/5 text-xs text-zinc-100"
+              >
+                FAQ and diagrams
+              </Button>
             </div>
             <div className="grid gap-3 rounded-3xl border border-white/10 bg-black/30 p-3 sm:grid-cols-2">
               <MetricCard label="Active ticker" value={tickerLabel} tone="text-cyan-100" />
@@ -742,28 +755,35 @@ export function OrderFlowBacktester() {
                         ? `${tickerLabel} · Price + Delta`
                         : activeTab === "cvd"
                           ? `${tickerLabel} · CVD`
-                          : activeTab === "bouncyball"
-                            ? `${tickerLabel} · Bouncy Ball Strategy`
-                            : activeTab === "tradingview"
-                              ? `${tickerLabel} · Multi-Timeframe TradingView`
-                              : "Backtest Equity"}
+                          : activeTab === "profile"
+                            ? `${tickerLabel} · Volume Profile`
+                            : activeTab === "bouncyball"
+                              ? `${tickerLabel} · Bouncy Ball Strategy`
+                              : activeTab === "tradingview"
+                                ? `${tickerLabel} · Multi-Timeframe TradingView`
+                                : "Backtest Equity"}
                     </CardTitle>
                     <p className="mt-2 text-sm leading-relaxed text-zinc-400">
                       {activeTab === "bouncyball" ? (
                         <>
-                          1-minute candlestick overlay for <span className="font-black text-white">{tickerLabel}</span> with
+                          1-minute candlestick overlay for <span className="font-semibold text-white">{tickerLabel}</span> with
                           bounce touches, CVD divergences, entries, and SL/TP from your strategy engine.
                         </>
                       ) : activeTab === "tradingview" ? (
                         <>
-                          Compare <span className="font-black text-white">{tickerLabel}</span> across 5m, 15m,
+                          Compare <span className="font-semibold text-white">{tickerLabel}</span> across 5m, 15m,
                           1H, 4H, and daily. Strategy markers live on the{" "}
-                          <span className="font-black text-white">Bouncy Ball</span> tab — the free TradingView
+                          <span className="font-semibold text-white">Bouncy Ball</span> tab. The free TradingView
                           embed cannot draw custom signals.
+                        </>
+                      ) : activeTab === "profile" ? (
+                        <>
+                          Auction Market Theory levels from OHLCV volume distribution: developing or fixed
+                          range profiles, value area, nodes, and initial balance. Open the FAQ for diagrams.
                         </>
                       ) : (
                         <>
-                          CVD divergence on <span className="font-black text-white">{tickerLabel}</span> means
+                          CVD divergence on <span className="font-semibold text-white">{tickerLabel}</span> means
                           price makes a fresh extreme while cumulative delta fails to confirm the move.
                         </>
                       )}
@@ -808,6 +828,8 @@ export function OrderFlowBacktester() {
                     <PriceDeltaChart chartData={chartData} signals={signals} tickerLabel={tickerLabel} />
                   ) : activeTab === "cvd" ? (
                     <CvdChart chartData={chartData} tickerLabel={tickerLabel} />
+                  ) : activeTab === "profile" ? (
+                    <VolumeProfilePanel bars={bars} onOpenFaq={() => setFaqOpen(true)} />
                   ) : (
                     <EquityChart result={result} />
                   )}

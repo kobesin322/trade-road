@@ -1,5 +1,82 @@
 export type DeltaMethod = "close_vs_prev" | "close_vs_midpoint";
 
+/** How OHLCV bar volume is painted into price bins (not tick-level prints). */
+export type VolumeDistributionModel = "uniform" | "close_weighted";
+
+export type ProfileMode = "developing" | "fixed_range" | "session" | "composite";
+
+export type SessionPreset = "utc_day" | "america_new_york_day" | "rth_us_equities";
+
+export type VolumeBin = {
+  /** Bin low price (inclusive). */
+  price: number;
+  /** Mid price of the bin (for display / POC). */
+  mid: number;
+  volume: number;
+};
+
+export type VolumeProfileLevels = {
+  poc: number;
+  vah: number;
+  val: number;
+  valueAreaPercent: number;
+  valueAreaVolume: number;
+};
+
+export type VolumeNode = {
+  price: number;
+  volume: number;
+  kind: "hvn" | "lvn";
+};
+
+export type InitialBalance = {
+  startTimestamp: number;
+  endTimestamp: number;
+  high: number;
+  low: number;
+  mid: number;
+  barCount: number;
+};
+
+export type VolumeProfile = {
+  mode: ProfileMode;
+  bins: VolumeBin[];
+  totalVolume: number;
+  startTimestamp: number;
+  endTimestamp: number;
+  startIndex: number;
+  endIndex: number;
+  tickSize: number;
+  levels: VolumeProfileLevels | null;
+  nodes: VolumeNode[];
+  initialBalance: InitialBalance | null;
+  sessionKey?: string;
+  sessionKeys?: string[];
+};
+
+export type VolumeProfileParams = {
+  tickSize: number;
+  valueAreaPercent: number;
+  distribution: VolumeDistributionModel;
+  /** HVN/LVN: standard deviations from mean (default 0.75). */
+  nodeSigma: number;
+  /** Minimum relative prominence vs max bin (0–1). */
+  nodeMinProminence: number;
+  /** Initial balance window in minutes from session open. */
+  initialBalanceMinutes: number;
+  sessionPreset: SessionPreset;
+};
+
+export const DEFAULT_VOLUME_PROFILE_PARAMS: VolumeProfileParams = {
+  tickSize: 0.25,
+  valueAreaPercent: 0.7,
+  distribution: "uniform",
+  nodeSigma: 0.75,
+  nodeMinProminence: 0.08,
+  initialBalanceMinutes: 60,
+  sessionPreset: "america_new_york_day",
+};
+
 export type SignalDirection = "long" | "short";
 
 export type TradeExitReason = "take_profit" | "stop_loss" | "end_of_data";
