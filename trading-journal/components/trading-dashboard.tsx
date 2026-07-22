@@ -108,13 +108,13 @@ const toolLinks: Array<{
   icon: LucideIcon;
 }> = [
   {
-    href: "/?view=Utilities",
+    href: "/app?view=Utilities",
     title: "Risk Calculator",
     description: "Size, R:R, journal link",
     icon: Calculator,
   },
   {
-    href: "/?view=Strategy%20Lab",
+    href: "/app?view=Strategy%20Lab",
     title: "Strategy Lab",
     description: "CVD bounce backtester",
     icon: FlaskConical,

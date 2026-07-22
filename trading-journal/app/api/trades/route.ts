@@ -30,7 +30,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Trade was not created." }, { status: 500 });
     }
 
-    revalidatePath("/");
+    revalidatePath("/app");
     return NextResponse.json({ trade: toPublicTrade(trade) }, { status: 201 });
   } catch (error) {
     return tradeErrorResponse(error);

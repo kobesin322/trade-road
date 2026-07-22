@@ -27,7 +27,7 @@ export async function createTrade(input: TradeInput) {
   }
 
   const trade = await createPersonalTrade(user.id, input);
-  revalidatePath("/");
+  revalidatePath("/app");
   return trade ? tradeRecordToTrade(trade) : null;
 }
 
@@ -51,7 +51,7 @@ export async function updateTrade(
   }
 
   const trade = await updatePersonalTrade(user.id, id, patch);
-  revalidatePath("/");
+  revalidatePath("/app");
   return trade ? tradeRecordToTrade(trade) : null;
 }
 
@@ -67,7 +67,7 @@ export async function deleteTrade(id: string) {
   }
 
   await deletePersonalTrade(user.id, id);
-  revalidatePath("/");
+  revalidatePath("/app");
 }
 
 export async function buildTradesCsv(): Promise<string> {

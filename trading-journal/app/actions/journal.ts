@@ -144,7 +144,7 @@ export async function saveJournalEntry(
         return { ok: false, message: "Unable to finalize journal screenshots." };
       }
 
-      revalidatePath("/");
+      revalidatePath("/app");
       return {
         ok: true,
         trade: tradeRecordToTrade(finalized),
@@ -174,7 +174,7 @@ export async function saveJournalEntry(
       return { ok: false, message: "Journal created but screenshot upload failed." };
     }
 
-    revalidatePath("/");
+    revalidatePath("/app");
     return {
       ok: true,
       trade: tradeRecordToTrade(finalized),
@@ -197,6 +197,6 @@ export async function deleteJournalEntry(tradeId: string): Promise<SaveJournalRe
     return { ok: false, message: "Journal entry not found." };
   }
 
-  revalidatePath("/");
+  revalidatePath("/app");
   return { ok: true, trade: {} as Trade, message: "Journal entry deleted." };
 }

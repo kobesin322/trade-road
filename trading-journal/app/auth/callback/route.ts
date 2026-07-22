@@ -11,7 +11,7 @@ function resolveNextPath(type: string | null, requestedNext: string | null) {
     return requestedNext;
   }
 
-  return "/";
+  return "/app";
 }
 
 export async function GET(request: NextRequest) {

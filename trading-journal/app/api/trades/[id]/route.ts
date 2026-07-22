@@ -42,7 +42,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       return NextResponse.json({ error: "Trade not found." }, { status: 404 });
     }
 
-    revalidatePath("/");
+    revalidatePath("/app");
     return NextResponse.json({ trade: toPublicTrade(trade) });
   } catch (error) {
     return tradeErrorResponse(error);
@@ -59,7 +59,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
       return NextResponse.json({ error: "Trade not found." }, { status: 404 });
     }
 
-    revalidatePath("/");
+    revalidatePath("/app");
     return NextResponse.json({ ok: true });
   } catch (error) {
     return tradeErrorResponse(error);

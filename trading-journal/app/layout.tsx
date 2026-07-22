@@ -17,7 +17,8 @@ export const metadata: Metadata = {
     default: "Trade Road",
     template: "%s · Trade Road",
   },
-  description: "Personal trading journal for logging trades, reviews, and daily performance.",
+  description:
+    "Trade Road — trading journal, portfolio, volume profile, and risk tools for discretionary traders.",
 };
 
 /** iPhone 14–first mobile viewport; safe-area enabled for notch / home indicator. */
