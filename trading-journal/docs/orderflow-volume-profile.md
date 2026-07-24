@@ -1,6 +1,6 @@
 # Order flow and volume profile
 
-Strategy Lab builds **OHLCV-based** volume profiles and proxy CVD. This is research-grade Auction Market Theory tooling, not a tick footprint replacement.
+Strategy Lab builds **OHLCV-based** volume profiles, proxy CVD, and a proxy footprint/Bookmap view. This is research-grade Auction Market Theory tooling, not a tick footprint or MBO replacement.
 
 ## Modules
 
@@ -8,7 +8,9 @@ Strategy Lab builds **OHLCV-based** volume profiles and proxy CVD. This is resea
 |------|------|
 | `lib/orderflow/engine/*` | Pure calculation: histogram, VA, nodes, IB, sessions, incremental state |
 | `lib/orderflow/computations.ts` | Bar delta, CVD, bounce strategy (existing) |
+| `lib/orderflow/footprint.ts` | Proxy footprint, residual heat trails, aggression tiers, trapped liquidity |
 | `components/tools/volume-profile-panel.tsx` | Profile UI |
+| `components/charts/footprint-bookmap-chart.tsx` | DeepChart/Bookmap canvas: heat + bubbles + trap diamonds |
 | `components/tools/orderflow-faq-modal.tsx` | In-app FAQ + SVG diagrams |
 
 ## Formulas (summary)

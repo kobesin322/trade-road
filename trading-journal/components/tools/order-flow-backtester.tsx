@@ -24,6 +24,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { TradingViewMultiTimeframe } from "@/components/charts/trading-view-multi-timeframe";
 import { BouncyBallStrategyChart } from "@/components/charts/bouncy-ball-strategy-chart";
+import { FootprintBookmapChart } from "@/components/charts/footprint-bookmap-chart";
 import { TickerSearchPanel } from "@/components/charts/ticker-search-panel";
 import { OrderflowFaqModal } from "@/components/tools/orderflow-faq-modal";
 import { VolumeProfilePanel } from "@/components/tools/volume-profile-panel";
@@ -54,12 +55,20 @@ const DEFAULT_TICKER_ID = CRYPTO_WATCHLIST[0].id;
 const STRATEGY_LAB_CHART_RANGE = "5d";
 const STRATEGY_LAB_CHART_INTERVAL = "1m";
 
-type ChartTab = "price" | "cvd" | "profile" | "bouncyball" | "tradingview" | "equity";
+type ChartTab =
+  | "price"
+  | "cvd"
+  | "profile"
+  | "footprint"
+  | "bouncyball"
+  | "tradingview"
+  | "equity";
 
 const chartTabs: Array<{ id: ChartTab; label: string }> = [
   { id: "price", label: "Price + Delta" },
   { id: "cvd", label: "CVD" },
   { id: "profile", label: "Volume Profile" },
+  { id: "footprint", label: "Footprint" },
   { id: "bouncyball", label: "Bouncy Ball" },
   { id: "tradingview", label: "TradingView MTF" },
   { id: "equity", label: "Equity" },
@@ -1170,11 +1179,13 @@ export function OrderFlowBacktester() {
                           ? `${tickerLabel} · CVD`
                           : activeTab === "profile"
                             ? `${tickerLabel} · Volume Profile`
-                            : activeTab === "bouncyball"
-                              ? `${tickerLabel} · Bouncy Ball Strategy`
-                              : activeTab === "tradingview"
-                                ? `${tickerLabel} · Multi-Timeframe TradingView`
-                                : "Backtest Equity"}
+                            : activeTab === "footprint"
+                              ? `${tickerLabel} · Footprint / Bookmap`
+                              : activeTab === "bouncyball"
+                                ? `${tickerLabel} · Bouncy Ball Strategy`
+                                : activeTab === "tradingview"
+                                  ? `${tickerLabel} · Multi-Timeframe TradingView`
+                                  : "Backtest Equity"}
                     </CardTitle>
                     <p className="mt-2 text-sm leading-relaxed text-zinc-400">
                       {activeTab === "bouncyball" ? (
@@ -1193,6 +1204,18 @@ export function OrderFlowBacktester() {
                         <>
                           Auction Market Theory levels from OHLCV volume distribution: developing or fixed
                           range profiles, value area, nodes, and initial balance. Open the FAQ for diagrams.
+                        </>
+                      ) : activeTab === "footprint" ? (
+                        <>
+                          <span className="font-semibold text-white">Dense heat trails</span> + footprint +{" "}
+                          <span className="font-semibold text-white">aggression bubbles</span> for{" "}
+                          <span className="font-semibold text-white">{tickerLabel}</span>. Gold rings = whale
+                          prints.{" "}
+                          <span className="font-semibold text-amber-200">TB diamonds</span> = trapped buyside;{" "}
+                          <span className="font-semibold text-violet-200">TS diamonds</span> = trapped
+                          sellside (failed aggression / reverse). Open{" "}
+                          <span className="font-semibold text-white">Legend & FAQ</span> for diagrams and
+                          worked examples. Proxy from OHLCV — not exchange tape.
                         </>
                       ) : activeTab === "price" ? (
                         <>
@@ -1317,6 +1340,12 @@ CVD_t = CVD_(t−1) + barDelta_t
                     <CvdChart chartData={chartData} tickerLabel={tickerLabel} />
                   ) : activeTab === "profile" ? (
                     <VolumeProfilePanel bars={bars} onOpenFaq={() => setFaqOpen(true)} />
+                  ) : activeTab === "footprint" ? (
+                    <FootprintBookmapChart
+                      bars={bars}
+                      tickerLabel={tickerLabel}
+                      onOpenFaq={() => setFaqOpen(true)}
+                    />
                   ) : (
                     <EquityChart result={result} />
                   )}
