@@ -9,6 +9,27 @@ type OrderflowFaqModalProps = {
   onClose: () => void;
 };
 
+type LegendItem = {
+  swatch: ReactNode;
+  label: string;
+  meaning: string;
+};
+
+type ExampleItem = {
+  title: string;
+  body: string;
+};
+
+type FaqSection = {
+  id: string;
+  title: string;
+  paragraphs: string[];
+  legend?: LegendItem[];
+  examples?: ExampleItem[];
+  diagram?: ReactNode;
+  diagramTitle?: string;
+};
+
 function DiagramFrame({ title, children }: { title: string; children: ReactNode }) {
   return (
     <figure className="overflow-hidden rounded-2xl border border-white/10 bg-black/40">
@@ -17,6 +38,88 @@ function DiagramFrame({ title, children }: { title: string; children: ReactNode 
       </figcaption>
       <div className="flex justify-center p-4">{children}</div>
     </figure>
+  );
+}
+
+function LegendList({ items }: { items: LegendItem[] }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+      <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
+        Legend
+      </div>
+      <ul className="space-y-2.5">
+        {items.map((item) => (
+          <li key={item.label} className="flex gap-3 text-sm">
+            <span className="mt-0.5 flex h-6 w-8 shrink-0 items-center justify-center">{item.swatch}</span>
+            <span>
+              <span className="font-semibold text-zinc-200">{item.label}</span>
+              <span className="text-zinc-500"> — {item.meaning}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function ExampleList({ items }: { items: ExampleItem[] }) {
+  return (
+    <div className="space-y-2">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
+        Examples
+      </div>
+      {items.map((item) => (
+        <div
+          key={item.title}
+          className="rounded-2xl border border-cyan-300/15 bg-cyan-300/[0.06] px-3 py-2.5"
+        >
+          <div className="text-sm font-semibold text-cyan-100">{item.title}</div>
+          <p className="mt-1 text-sm leading-relaxed text-zinc-400">{item.body}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SwatchCircle({
+  fill,
+  ring,
+}: {
+  fill: string;
+  ring?: string;
+}) {
+  return (
+    <span
+      className="inline-block h-3.5 w-3.5 rounded-full"
+      style={{
+        backgroundColor: fill,
+        boxShadow: ring ? `0 0 0 2px ${ring}` : undefined,
+      }}
+    />
+  );
+}
+
+function SwatchDiamond({ fill }: { fill: string }) {
+  return (
+    <span
+      className="inline-block h-3 w-3 rotate-45"
+      style={{ backgroundColor: fill }}
+    />
+  );
+}
+
+function SwatchCell({ left, right }: { left: string; right: string }) {
+  return (
+    <span className="inline-flex h-3.5 w-7 overflow-hidden rounded-sm border border-white/20">
+      <span className="h-full w-1/2" style={{ backgroundColor: left }} />
+      <span className="h-full w-1/2" style={{ backgroundColor: right }} />
+    </span>
+  );
+}
+
+function SwatchHeat() {
+  return (
+    <span className="inline-block h-2.5 w-7 rounded-sm bg-gradient-to-r from-rose-500/70 via-emerald-500/50 to-emerald-400/80" />
   );
 }
 
@@ -90,7 +193,6 @@ function ProfileDiagram() {
   return (
     <svg viewBox="0 0 320 160" className="h-auto w-full max-w-sm" aria-hidden>
       <rect width="320" height="160" fill="#0a0f18" rx="12" />
-      {/* histogram bars horizontal */}
       {[
         [40, 20],
         [55, 35],
@@ -261,14 +363,40 @@ const sections: Array<{
 
 export function OrderflowFaqModal({ open, onClose }: OrderflowFaqModalProps) {
   return (
-    <Modal open={open} onClose={onClose} title="Order flow and volume profile FAQ" wide className="max-w-3xl">
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Order flow, footprint & volume profile FAQ"
+      wide
+      className="max-w-3xl"
+    >
       <div className="space-y-8">
         <p className="text-sm leading-relaxed text-zinc-400">
           Short reference for Strategy Lab concepts. Diagrams are schematic (not live market data). Chart
           axes: price in $, delta/CVD in proxy volume units.
         </p>
+
+        <nav
+          aria-label="FAQ topics"
+          className="flex flex-wrap gap-2 rounded-2xl border border-white/10 bg-black/30 p-3"
+        >
+          {sections.map((section) => (
+            <a
+              key={section.id}
+              href={`#faq-${section.id}`}
+              className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-medium text-zinc-400 transition-colors hover:border-cyan-300/40 hover:text-cyan-100"
+            >
+              {section.title.length > 36 ? `${section.title.slice(0, 34)}…` : section.title}
+            </a>
+          ))}
+        </nav>
+
         {sections.map((section) => (
-          <section key={section.id} className="space-y-3 border-t border-white/10 pt-6 first:border-t-0 first:pt-0">
+          <section
+            key={section.id}
+            id={`faq-${section.id}`}
+            className="scroll-mt-4 space-y-3 border-t border-white/10 pt-6 first:border-t-0 first:pt-0"
+          >
             <h3 className="text-base font-semibold text-white">{section.title}</h3>
             <div className="max-w-[65ch] space-y-2">
               {section.paragraphs.map((paragraph) => (
