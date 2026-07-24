@@ -1205,18 +1205,6 @@ export function OrderFlowBacktester() {
                           Auction Market Theory levels from OHLCV volume distribution: developing or fixed
                           range profiles, value area, nodes, and initial balance. Open the FAQ for diagrams.
                         </>
-                      ) : activeTab === "footprint" ? (
-                        <>
-                          <span className="font-semibold text-white">Dense heat trails</span> + footprint +{" "}
-                          <span className="font-semibold text-white">aggression bubbles</span> for{" "}
-                          <span className="font-semibold text-white">{tickerLabel}</span>. Gold rings = whale
-                          prints.{" "}
-                          <span className="font-semibold text-amber-200">TB diamonds</span> = trapped buyside;{" "}
-                          <span className="font-semibold text-violet-200">TS diamonds</span> = trapped
-                          sellside (failed aggression / reverse). Open{" "}
-                          <span className="font-semibold text-white">Legend & FAQ</span> for diagrams and
-                          worked examples. Proxy from OHLCV — not exchange tape.
-                        </>
                       ) : activeTab === "price" ? (
                         <>
                           <span className="font-semibold text-white">Price + Delta</span> overlays two series:
