@@ -1,14 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Area,
   Bar,
+  Brush,
   CartesianGrid,
+  Cell,
   ComposedChart,
   Line,
   LineChart,
-  ReferenceDot,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -71,6 +73,8 @@ type ChartRow = {
   cumulativeDelta: number;
   equity?: number;
   drawdown?: number;
+  /** Entry signal on this bar, if any. */
+  signalDirection?: "long" | "short" | null;
 };
 
 type TooltipPayload = {
@@ -80,6 +84,185 @@ type TooltipPayload = {
   payload?: ChartRow;
 };
 
+/** 1m bars: how many points each zoom preset shows (null = full series). */
+type ZoomPreset = "30m" | "1h" | "4h" | "1d" | "all";
+type ZoomSelection = ZoomPreset | "custom";
+
+const ZOOM_PRESETS: Array<{ id: ZoomPreset; label: string; bars: number | null }> = [
+  { id: "30m", label: "30m", bars: 30 },
+  { id: "1h", label: "1H", bars: 60 },
+  { id: "4h", label: "4H", bars: 240 },
+  { id: "1d", label: "1D", bars: 390 },
+  { id: "all", label: "All", bars: null },
+];
+
+const DEFAULT_ZOOM_PRESET: ZoomPreset = "1h";
+
+type BrushRange = {
+  startIndex: number;
+  endIndex: number;
+};
+
+function rangeForPreset(dataLength: number, preset: ZoomPreset): BrushRange {
+  if (dataLength <= 0) {
+    return { startIndex: 0, endIndex: 0 };
+  }
+  const endIndex = dataLength - 1;
+  const bars = ZOOM_PRESETS.find((item) => item.id === preset)?.bars ?? null;
+  if (bars === null || bars >= dataLength) {
+    return { startIndex: 0, endIndex };
+  }
+  return { startIndex: Math.max(0, endIndex - bars + 1), endIndex };
+}
+
+/**
+ * Prefer a tight recent window, but expand (up to 1D) so the latest entry signal is still visible.
+ */
+function rangeIncludingLatestSignal(chartData: ChartRow[], preferredBars = 60, maxBars = 390): BrushRange {
+  const dataLength = chartData.length;
+  if (dataLength <= 0) {
+    return { startIndex: 0, endIndex: 0 };
+  }
+  const endIndex = dataLength - 1;
+  let lastSignalIndex = -1;
+  for (let i = endIndex; i >= 0; i -= 1) {
+    if (chartData[i]?.signalDirection) {
+      lastSignalIndex = i;
+      break;
+    }
+  }
+  const needBars =
+    lastSignalIndex >= 0 ? endIndex - lastSignalIndex + 1 + Math.min(20, preferredBars) : preferredBars;
+  const bars = Math.min(maxBars, Math.max(preferredBars, needBars));
+  return { startIndex: Math.max(0, endIndex - bars + 1), endIndex };
+}
+
+function clampBrushRange(range: BrushRange, dataLength: number): BrushRange {
+  if (dataLength <= 0) {
+    return { startIndex: 0, endIndex: 0 };
+  }
+  const maxIndex = dataLength - 1;
+  const startIndex = Math.max(0, Math.min(range.startIndex, maxIndex));
+  const endIndex = Math.max(startIndex, Math.min(range.endIndex, maxIndex));
+  return { startIndex, endIndex };
+}
+
+function useChartBrushRange(chartData: ChartRow[]) {
+  const dataLength = chartData.length;
+  const [preset, setPreset] = useState<ZoomSelection>(DEFAULT_ZOOM_PRESET);
+  const [range, setRange] = useState<BrushRange>(() => rangeIncludingLatestSignal(chartData));
+  const [seededForLength, setSeededForLength] = useState(dataLength);
+
+  // When a new series loads, re-seed so the latest signal is in view (not stuck on full 5d).
+  useEffect(() => {
+    if (dataLength === seededForLength) {
+      return;
+    }
+    setSeededForLength(dataLength);
+    setPreset(DEFAULT_ZOOM_PRESET);
+    setRange(rangeIncludingLatestSignal(chartData));
+  }, [chartData, dataLength, seededForLength]);
+
+  useEffect(() => {
+    if (preset === "custom" || preset === DEFAULT_ZOOM_PRESET) {
+      // DEFAULT is managed by seed + applyPreset; avoid fighting the signal-aware initial window.
+      if (preset === "custom") {
+        setRange((current) => clampBrushRange(current, dataLength));
+      }
+      return;
+    }
+    setRange(rangeForPreset(dataLength, preset));
+  }, [dataLength, preset]);
+
+  const applyPreset = useCallback(
+    (next: ZoomPreset) => {
+      setPreset(next);
+      if (next === DEFAULT_ZOOM_PRESET) {
+        setRange(rangeIncludingLatestSignal(chartData));
+        return;
+      }
+      setRange(rangeForPreset(dataLength, next));
+    },
+    [chartData, dataLength],
+  );
+
+  const onBrushChange = useCallback(
+    (next: { startIndex?: number; endIndex?: number }) => {
+      if (next.startIndex === undefined || next.endIndex === undefined) {
+        return;
+      }
+      setPreset("custom");
+      setRange(clampBrushRange({ startIndex: next.startIndex, endIndex: next.endIndex }, dataLength));
+    },
+    [dataLength],
+  );
+
+  return { preset, range, applyPreset, onBrushChange };
+}
+
+function ChartZoomControls({
+  preset,
+  onPreset,
+  signalCount,
+}: {
+  preset: ZoomSelection;
+  onPreset: (preset: ZoomPreset) => void;
+  signalCount?: number;
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="mr-1 text-[10px] font-black uppercase tracking-[0.14em] text-zinc-500">Zoom</span>
+        {ZOOM_PRESETS.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => onPreset(item.id)}
+            className={cn(
+              "rounded-full border px-2.5 py-1 text-[11px] font-semibold transition",
+              preset === item.id
+                ? "border-cyan-300/50 bg-cyan-300/15 text-cyan-100"
+                : "border-white/10 bg-white/[0.03] text-zinc-400 hover:border-white/20 hover:text-zinc-200",
+            )}
+          >
+            {item.label}
+          </button>
+        ))}
+        {preset === "custom" ? (
+          <span className="rounded-full border border-white/10 px-2.5 py-1 text-[11px] font-semibold text-zinc-300">
+            Custom
+          </span>
+        ) : null}
+      </div>
+      {signalCount !== undefined ? (
+        <span className="text-[11px] text-zinc-500">
+          {signalCount} signal{signalCount === 1 ? "" : "s"} on chart · drag the brush below to pan/zoom
+        </span>
+      ) : (
+        <span className="text-[11px] text-zinc-500">Drag the brush below to pan/zoom</span>
+      )}
+    </div>
+  );
+}
+
+function SignalEntryDot(props: {
+  cx?: number;
+  cy?: number;
+  payload?: ChartRow;
+}) {
+  const { cx, cy, payload } = props;
+  if (cx == null || cy == null || !payload?.signalDirection) {
+    return null;
+  }
+  const fill = payload.signalDirection === "long" ? "#22c55e" : "#fb7185";
+  return (
+    <g>
+      <circle cx={cx} cy={cy} r={7} fill={fill} stroke="rgba(255,255,255,0.95)" strokeWidth={1.5} />
+      <circle cx={cx} cy={cy} r={2.5} fill="rgba(255,255,255,0.9)" />
+    </g>
+  );
+}
+
 const numberFormatter = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 2,
 });
@@ -88,6 +271,11 @@ const currencyFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
   maximumFractionDigits: 2,
+});
+
+const compactNumberFormatter = new Intl.NumberFormat("en-US", {
+  notation: "compact",
+  maximumFractionDigits: 1,
 });
 
 function formatPercent(value: number) {
@@ -117,6 +305,78 @@ function formatValue(value: number | undefined, kind: "currency" | "number" | "p
   }
 
   return numberFormatter.format(value);
+}
+
+/** Axis ticks for price — limited decimals, no scientific noise. */
+function formatPriceAxisTick(value: number) {
+  if (!Number.isFinite(value)) return "";
+  const abs = Math.abs(value);
+  if (abs >= 10_000) return compactNumberFormatter.format(value);
+  if (abs >= 1_000) return value.toFixed(0);
+  if (abs >= 100) return value.toFixed(1);
+  if (abs >= 1) return value.toFixed(2);
+  if (abs >= 0.01) return value.toFixed(4);
+  return value.toFixed(6);
+}
+
+/** Axis ticks for volume / bar delta / CVD — compact K/M when large; keep minus sign. */
+function formatVolumeAxisTick(value: number) {
+  if (!Number.isFinite(value)) return "";
+  if (value === 0) return "0";
+  const sign = value < 0 ? "−" : "";
+  const abs = Math.abs(value);
+  if (abs >= 1_000) return `${sign}${compactNumberFormatter.format(abs)}`;
+  if (abs >= 100) return `${sign}${abs.toFixed(0)}`;
+  if (abs >= 1) return `${sign}${abs.toFixed(1)}`;
+  return `${sign}${abs.toFixed(2)}`;
+}
+
+function formatTooltipByKey(dataKey: string | number | undefined, value: number) {
+  if (!Number.isFinite(value)) return "--";
+
+  switch (dataKey) {
+    case "close":
+      return `$${formatPriceAxisTick(value)}`;
+    case "barDelta":
+      return `${formatVolumeAxisTick(value)} vol`;
+    case "cumulativeDelta":
+      return `${formatVolumeAxisTick(value)} vol`;
+    case "equity":
+      return currencyFormatter.format(value);
+    case "drawdown":
+      return `${value.toFixed(1)}%`;
+    default:
+      return formatVolumeAxisTick(value);
+  }
+}
+
+function axisLabelStyle(fill: string) {
+  return { fill, fontSize: 11, fontWeight: 600 };
+}
+
+function ChartLegendDot({ color, label }: { color: string; label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 text-[11px] text-zinc-400">
+      <span className="inline-block h-2.5 w-2.5 rounded-full ring-1 ring-white/80" style={{ backgroundColor: color }} />
+      {label}
+    </span>
+  );
+}
+
+function FormulaNote({ children }: { children: ReactNode }) {
+  return (
+    <div className="mt-3 max-w-3xl space-y-2 rounded-2xl border border-white/10 bg-black/30 px-3.5 py-3 text-xs leading-relaxed text-zinc-400">
+      {children}
+    </div>
+  );
+}
+
+function FormulaCode({ children }: { children: ReactNode }) {
+  return (
+    <code className="block whitespace-pre-wrap rounded-xl border border-cyan-300/15 bg-cyan-300/5 px-3 py-2 font-mono text-[11px] leading-relaxed text-cyan-100/95">
+      {children}
+    </code>
+  );
 }
 
 function MetricCard({
@@ -280,7 +540,9 @@ function StrategyTooltip({ active, payload, label }: { active?: boolean; payload
         {payload.map((item) => (
           <div key={String(item.dataKey)} className="flex justify-between gap-5 text-zinc-300">
             <span>{item.name ?? item.dataKey}</span>
-            <span className="font-mono text-cyan-100">{formatValue(Number(item.value ?? 0))}</span>
+            <span className="font-mono text-cyan-100">
+              {formatTooltipByKey(item.dataKey, Number(item.value ?? 0))}
+            </span>
           </div>
         ))}
       </div>
@@ -290,50 +552,158 @@ function StrategyTooltip({ active, payload, label }: { active?: boolean; payload
 
 function PriceDeltaChart({
   chartData,
-  signals,
   tickerLabel,
 }: {
   chartData: ChartRow[];
-  signals: StrategySignal[];
+  signals?: StrategySignal[];
   tickerLabel: string;
 }) {
+  const { preset, range, applyPreset, onBrushChange } = useChartBrushRange(chartData);
+  const signalCount = useMemo(
+    () => chartData.filter((row) => row.signalDirection === "long" || row.signalDirection === "short").length,
+    [chartData],
+  );
+
   return (
-    <ResponsiveContainer width="100%" height={560}>
-      <ComposedChart data={chartData}>
-        <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
-        <XAxis dataKey="time" tick={{ fill: "#71717a", fontSize: 11 }} minTickGap={28} />
-        <YAxis yAxisId="price" tick={{ fill: "#a1a1aa", fontSize: 11 }} domain={["dataMin", "dataMax"]} />
-        <YAxis yAxisId="delta" orientation="right" tick={{ fill: "#71717a", fontSize: 11 }} />
-        <Tooltip content={<StrategyTooltip />} />
-        <Bar yAxisId="delta" dataKey="barDelta" name={`${tickerLabel} bar delta`} fill="rgba(34,211,238,0.28)" />
-        <Line yAxisId="price" type="monotone" dataKey="close" name={`${tickerLabel} close`} stroke="#f8fafc" strokeWidth={2} dot={false} />
-        {signals.slice(-50).map((signal) => (
-          <ReferenceDot
-            key={signal.id}
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1">
+        <ChartLegendDot color="#f8fafc" label="Close price ($)" />
+        <ChartLegendDot color="rgba(52,211,153,0.75)" label="+ bar delta (up close)" />
+        <ChartLegendDot color="rgba(251,113,133,0.75)" label="− bar delta (down close)" />
+        <ChartLegendDot color="#22c55e" label="Long entry" />
+        <ChartLegendDot color="#fb7185" label="Short entry" />
+      </div>
+      <ChartZoomControls preset={preset} onPreset={applyPreset} signalCount={signalCount} />
+      <ResponsiveContainer width="100%" height={560}>
+        <ComposedChart data={chartData} margin={{ top: 8, right: 12, left: 4, bottom: 8 }}>
+          <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
+          <XAxis dataKey="time" tick={{ fill: "#71717a", fontSize: 11 }} minTickGap={28} />
+          <YAxis
             yAxisId="price"
-            x={formatDate(signal.timestamp)}
-            y={signal.entry}
-            r={5}
-            fill={signal.direction === "long" ? "#22c55e" : "#fb7185"}
-            stroke="rgba(255,255,255,0.9)"
+            tick={{ fill: "#a1a1aa", fontSize: 11 }}
+            domain={["auto", "auto"]}
+            allowDataOverflow
+            width={64}
+            tickFormatter={formatPriceAxisTick}
+            tickCount={6}
+            label={{
+              value: "Price ($)",
+              angle: -90,
+              position: "insideLeft",
+              offset: 8,
+              style: axisLabelStyle("#a1a1aa"),
+            }}
           />
-        ))}
-      </ComposedChart>
-    </ResponsiveContainer>
+          <YAxis
+            yAxisId="delta"
+            orientation="right"
+            tick={{ fill: "#71717a", fontSize: 11 }}
+            domain={["auto", "auto"]}
+            allowDataOverflow
+            width={56}
+            tickFormatter={formatVolumeAxisTick}
+            tickCount={6}
+            label={{
+              value: "Bar delta (vol)",
+              angle: 90,
+              position: "insideRight",
+              offset: 4,
+              style: axisLabelStyle("#71717a"),
+            }}
+          />
+          <Tooltip content={<StrategyTooltip />} />
+          <ReferenceLine yAxisId="delta" y={0} stroke="rgba(255,255,255,0.2)" strokeDasharray="3 3" />
+          <Bar yAxisId="delta" dataKey="barDelta" name="Bar delta (proxy vol)" isAnimationActive={false}>
+            {chartData.map((row, index) => (
+              <Cell
+                key={`delta-${row.timestamp}-${index}`}
+                fill={row.barDelta >= 0 ? "rgba(52,211,153,0.55)" : "rgba(251,113,133,0.55)"}
+              />
+            ))}
+          </Bar>
+          <Line
+            yAxisId="price"
+            type="monotone"
+            dataKey="close"
+            name={`${tickerLabel} close ($)`}
+            stroke="#f8fafc"
+            strokeWidth={2}
+            dot={<SignalEntryDot />}
+            activeDot={{ r: 4, strokeWidth: 1 }}
+            isAnimationActive={false}
+          />
+          <Brush
+            dataKey="time"
+            height={32}
+            stroke="#22d3ee"
+            fill="rgba(34,211,238,0.06)"
+            travellerWidth={10}
+            startIndex={range.startIndex}
+            endIndex={range.endIndex}
+            onChange={onBrushChange}
+            tickFormatter={(value) => String(value).replace(/,\s*\d{4}/, "")}
+          />
+        </ComposedChart>
+      </ResponsiveContainer>
+    </div>
   );
 }
 
 function CvdChart({ chartData, tickerLabel }: { chartData: ChartRow[]; tickerLabel: string }) {
+  const { preset, range, applyPreset, onBrushChange } = useChartBrushRange(chartData);
+
   return (
-    <ResponsiveContainer width="100%" height={560}>
-      <LineChart data={chartData}>
-        <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
-        <XAxis dataKey="time" tick={{ fill: "#71717a", fontSize: 11 }} minTickGap={28} />
-        <YAxis tick={{ fill: "#a1a1aa", fontSize: 11 }} />
-        <Tooltip content={<StrategyTooltip />} />
-        <Line type="monotone" dataKey="cumulativeDelta" name={`${tickerLabel} CVD`} stroke="#22d3ee" strokeWidth={2.5} dot={false} />
-      </LineChart>
-    </ResponsiveContainer>
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1">
+        <ChartLegendDot color="#22d3ee" label="Proxy CVD (sum of bar delta, vol units)" />
+        <ChartLegendDot color="#22c55e" label="Long entry (on CVD level)" />
+        <ChartLegendDot color="#fb7185" label="Short entry (on CVD level)" />
+      </div>
+      <ChartZoomControls preset={preset} onPreset={applyPreset} signalCount={chartData.filter((r) => r.signalDirection).length} />
+      <ResponsiveContainer width="100%" height={560}>
+        <LineChart data={chartData} margin={{ top: 8, right: 12, left: 4, bottom: 8 }}>
+          <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
+          <XAxis dataKey="time" tick={{ fill: "#71717a", fontSize: 11 }} minTickGap={28} />
+          <YAxis
+            tick={{ fill: "#a1a1aa", fontSize: 11 }}
+            domain={["auto", "auto"]}
+            allowDataOverflow
+            width={64}
+            tickFormatter={formatVolumeAxisTick}
+            tickCount={6}
+            label={{
+              value: "CVD (proxy vol)",
+              angle: -90,
+              position: "insideLeft",
+              offset: 8,
+              style: axisLabelStyle("#a1a1aa"),
+            }}
+          />
+          <Tooltip content={<StrategyTooltip />} />
+          <Line
+            type="monotone"
+            dataKey="cumulativeDelta"
+            name={`${tickerLabel} CVD (proxy vol)`}
+            stroke="#22d3ee"
+            strokeWidth={2.5}
+            dot={<SignalEntryDot />}
+            activeDot={{ r: 4, strokeWidth: 1 }}
+            isAnimationActive={false}
+          />
+          <Brush
+            dataKey="time"
+            height={32}
+            stroke="#22d3ee"
+            fill="rgba(34,211,238,0.06)"
+            travellerWidth={10}
+            startIndex={range.startIndex}
+            endIndex={range.endIndex}
+            onChange={onBrushChange}
+            tickFormatter={(value) => String(value).replace(/,\s*\d{4}/, "")}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
   );
 }
 
@@ -349,17 +719,54 @@ function EquityChart({ result }: { result: BacktestResult }) {
   }));
 
   return (
-    <ResponsiveContainer width="100%" height={560}>
-      <ComposedChart data={equityData}>
-        <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
-        <XAxis dataKey="time" tick={{ fill: "#71717a", fontSize: 11 }} minTickGap={28} />
-        <YAxis yAxisId="equity" tick={{ fill: "#a1a1aa", fontSize: 11 }} />
-        <YAxis yAxisId="drawdown" orientation="right" tick={{ fill: "#fb7185", fontSize: 11 }} />
-        <Tooltip content={<StrategyTooltip />} />
-        <Area yAxisId="drawdown" type="monotone" dataKey="drawdown" name="Drawdown %" fill="rgba(244,63,94,0.18)" stroke="#fb7185" />
-        <Line yAxisId="equity" type="monotone" dataKey="equity" name="Equity" stroke="#22c55e" strokeWidth={2.5} dot={false} />
-      </ComposedChart>
-    </ResponsiveContainer>
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1">
+        <ChartLegendDot color="#22c55e" label="Equity ($)" />
+        <ChartLegendDot color="#fb7185" label="Drawdown (%)" />
+      </div>
+      <ResponsiveContainer width="100%" height={540}>
+        <ComposedChart data={equityData} margin={{ top: 8, right: 12, left: 4, bottom: 4 }}>
+          <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
+          <XAxis dataKey="time" tick={{ fill: "#71717a", fontSize: 11 }} minTickGap={28} />
+          <YAxis
+            yAxisId="equity"
+            tick={{ fill: "#a1a1aa", fontSize: 11 }}
+            width={64}
+            tickFormatter={(v) => {
+              const n = Number(v);
+              if (!Number.isFinite(n)) return "";
+              return Math.abs(n) >= 1_000 ? `$${compactNumberFormatter.format(n)}` : `$${n.toFixed(0)}`;
+            }}
+            tickCount={6}
+            label={{
+              value: "Equity ($)",
+              angle: -90,
+              position: "insideLeft",
+              offset: 8,
+              style: axisLabelStyle("#a1a1aa"),
+            }}
+          />
+          <YAxis
+            yAxisId="drawdown"
+            orientation="right"
+            tick={{ fill: "#fb7185", fontSize: 11 }}
+            width={48}
+            tickFormatter={(v) => `${Number(v).toFixed(0)}%`}
+            tickCount={6}
+            label={{
+              value: "DD (%)",
+              angle: 90,
+              position: "insideRight",
+              offset: 4,
+              style: axisLabelStyle("#fb7185"),
+            }}
+          />
+          <Tooltip content={<StrategyTooltip />} />
+          <Area yAxisId="drawdown" type="monotone" dataKey="drawdown" name="Drawdown (%)" fill="rgba(244,63,94,0.18)" stroke="#fb7185" />
+          <Line yAxisId="equity" type="monotone" dataKey="equity" name="Equity ($)" stroke="#22c55e" strokeWidth={2.5} dot={false} />
+        </ComposedChart>
+      </ResponsiveContainer>
+    </div>
   );
 }
 
@@ -599,17 +1006,23 @@ export function OrderFlowBacktester() {
     return [];
   }, [selectedSignalIds, showAllSignalsOnChart, signals]);
   const result = useMemo(() => runBacktest(bars, signals, params), [bars, params, signals]);
-  const chartData = useMemo(
-    () =>
-      enhancedBars.map((bar) => ({
-        time: formatDate(bar.timestamp),
-        timestamp: bar.timestamp,
-        close: bar.close,
-        barDelta: bar.barDelta,
-        cumulativeDelta: bar.cumulativeDelta,
-      })),
-    [enhancedBars],
-  );
+  const chartData = useMemo(() => {
+    // Map every signal onto its bar so green/red markers render across the full history
+    // (not only the last 50 ReferenceDots on a fully zoomed-out 5d series).
+    const signalByTimestamp = new Map<number, StrategySignal["direction"]>();
+    for (const signal of signals) {
+      signalByTimestamp.set(signal.timestamp, signal.direction);
+    }
+
+    return enhancedBars.map((bar) => ({
+      time: formatDate(bar.timestamp),
+      timestamp: bar.timestamp,
+      close: bar.close,
+      barDelta: bar.barDelta,
+      cumulativeDelta: bar.cumulativeDelta,
+      signalDirection: signalByTimestamp.get(bar.timestamp) ?? null,
+    }));
+  }, [enhancedBars, signals]);
 
   const divergenceBars = useMemo(
     () => enhancedBars.filter((bar: OrderFlowBar) => bar.deltaDivergence),
@@ -780,6 +1193,80 @@ export function OrderFlowBacktester() {
                         <>
                           Auction Market Theory levels from OHLCV volume distribution: developing or fixed
                           range profiles, value area, nodes, and initial balance. Open the FAQ for diagrams.
+                        </>
+                      ) : activeTab === "price" ? (
+                        <>
+                          <span className="font-semibold text-white">Price + Delta</span> overlays two series:
+                          the white line is <span className="font-semibold text-white">close price ($)</span>;
+                          the bars are <span className="font-semibold text-white">bar delta</span> (proxy volume
+                          units on the right axis). It answers: “did this bar close like buyers or sellers won,
+                          and how hard?” — not true bid/ask tape.
+                          <span className="font-semibold text-emerald-300"> Green</span> /{" "}
+                          <span className="font-semibold text-rose-300">red</span> dots = long/short strategy
+                          entries. Zoom 30m–All or drag the brush to pan.
+                          <FormulaNote>
+                            <p className="font-semibold text-zinc-200">What bar delta means</p>
+                            <p>
+                              Each bar gets a signed volume estimate.{" "}
+                              <span className="text-emerald-300">Positive</span> (bars above the zero line) ≈
+                              up-close / bullish conviction that bar.{" "}
+                              <span className="text-rose-300">Negative</span> (bars below zero) ≈ down-close /
+                              bearish conviction. Zero line is drawn on the right axis — hover a bar for the signed
+                              number (e.g. −1.2K vol).
+                            </p>
+                            <p className="font-semibold text-zinc-200">Formula (proxy, from OHLCV)</p>
+                            <FormulaCode>
+                              {`direction = sign(close − prevClose)   // or close − midpoint
+// fallback: sign(close − open) if direction is 0
+conviction = clamp(|close − open| / (high − low), 0.15, 1)
+barDelta   = volume × conviction × direction`}
+                            </FormulaCode>
+                            <p>
+                              Implication: large +delta on an up bar = volume “supporting” the push up under this
+                              proxy. Large −delta on a down bar = volume supporting the selloff. Delta is{" "}
+                              <span className="text-white">not dollars</span> and{" "}
+                              <span className="text-white">not true aggressive buy/sell size</span> — only an
+                              OHLCV estimate.
+                            </p>
+                          </FormulaNote>
+                        </>
+                      ) : activeTab === "cvd" ? (
+                        <>
+                          <span className="font-semibold text-white">CVD</span> (Cumulative Volume Delta) for{" "}
+                          <span className="font-semibold text-white">{tickerLabel}</span> is the running sum of
+                          every bar’s proxy delta. Units = volume (not $). Same zoom/brush; green/red dots are
+                          strategy entries plotted at that bar’s CVD level.
+                          <FormulaNote>
+                            <p className="font-semibold text-zinc-200">Formulas</p>
+                            <FormulaCode>
+                              {`// same barDelta as Price + Delta tab
+barDelta_t = volume_t × conviction_t × direction_t
+
+CVD_0 = barDelta_0
+CVD_t = CVD_(t−1) + barDelta_t
+      = Σ barDelta_i   for i = 0…t`}
+                            </FormulaCode>
+                            <p className="font-semibold text-zinc-200">How to read the slope</p>
+                            <p>
+                              <span className="text-white">Rising CVD</span> ≈ net{" "}
+                              <span className="text-emerald-300">buying pressure building</span> over the window
+                              (more proxy “buy” volume than “sell” volume in the cumulative sum).{" "}
+                              <span className="text-white">Falling CVD</span> ≈ net selling pressure. That is{" "}
+                              <span className="text-white">not</span> a live count of people in the market — it is
+                              our OHLCV stand-in for whether closes have been more buy-like or sell-like weighted
+                              by volume.
+                            </p>
+                            <p>
+                              Absolute CVD level can stay positive for a long time after early buying; what
+                              matters more is <span className="text-white">direction of the line</span> and
+                              whether it confirms or diverges from price highs/lows.
+                            </p>
+                          </FormulaNote>
+                        </>
+                      ) : activeTab === "equity" ? (
+                        <>
+                          Simulated equity curve in <span className="font-semibold text-white">USD</span> with
+                          drawdown on the right axis (% of peak).
                         </>
                       ) : (
                         <>
