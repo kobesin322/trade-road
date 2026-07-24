@@ -230,32 +230,12 @@ export function TradeRoadLanding() {
             </span>
             <span className="text-white">Trade Road</span>
           </Link>
-          <nav className="hidden items-center gap-6 text-sm text-zinc-400 md:flex" aria-label="Landing">
-            <a href="#journey" className="transition hover:text-white">
-              Journey
-            </a>
-            <a href="#journal" className="transition hover:text-white">
-              Journal
-            </a>
-            <a href="#volume" className="transition hover:text-white">
-              Profile
-            </a>
-            <a href="#risk" className="transition hover:text-white">
-              Risk
-            </a>
-          </nav>
           <div className="flex items-center gap-2">
-            <Link
-              href="/login"
-              className="inline-flex min-h-11 items-center rounded-full px-4 text-sm font-semibold text-zinc-300 transition hover:text-white"
-            >
-              Sign in
-            </Link>
             <Link
               href="/login"
               className="inline-flex min-h-11 items-center rounded-full border border-cyan-300/40 bg-cyan-300 px-4 text-sm font-bold text-slate-950 transition hover:bg-cyan-200 active:scale-[0.98]"
             >
-              Open the road
+              Sign in
             </Link>
           </div>
         </div>
